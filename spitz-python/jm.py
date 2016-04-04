@@ -230,6 +230,7 @@ def setup_endpoint_for_pulling(e):
 ###############################################################################
 def push_tasks(job, jm, tm, taskid, task, tasklist):
     # Keep pushing until finished or the task manager is full
+    sent = []
     while True:
         if task == None:
             # Only get a task if the last one was already sent
@@ -238,7 +239,7 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
 
             # Exit if done
             if r1 == 0:
-                return (True, 0, None)
+                return (True, 0, None, sent)
 
             # Add the generated task to the tasklist
             tasklist[taskid] = (0, task)
@@ -258,11 +259,13 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
 
             if response == messaging.msg_send_full:
                 # Task was sent, but the task manager is now full
+                sent.append((taskid, task))
                 task = None
                 break
 
             elif response == messaging.msg_send_more:
                 # Continue pushing tasks
+                sent.append((taskid, task))
                 task = None
                 pass
 
@@ -283,7 +286,7 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
             # try with another task manager
             break
 
-    return (False, taskid, task)
+    return (False, taskid, task, sent)
 
 ###############################################################################
 # Read and commit tasks while the task manager is not empty
@@ -321,9 +324,16 @@ def commit_tasks(job, co, tm, tasklist, completed):
 
             c = completed.get(taskid, (None, None))
             if c[0] != None:
-                # This shouldn't happen without the fault tolerance system!
-                logging.warning('The task %d was received more than once!',
+                # This may happen with the fault tolerance system. This may
+                # lead to tasks being put in the tasklist by the job manager
+                # while being committed. The tasklist must be constantly
+                # sanitized.
+                logging.warning('The task %d was received more than once ' +
+                    'and will not be committed again!',
                     taskid)
+                # Removed the completed task from the tasklist
+                tasklist.pop(taskid, (None, None))
+                continue
 
             # Remove it from the tasklist
 
@@ -357,6 +367,9 @@ def jobmanager(argv, job, jm, tasklist, completed):
     # Load the list of nodes to connect to
     tmlist = load_tm_list()
 
+    # Store some metadata
+    submissions = [] # (taskid, submission time, [sent to])
+
     # Task generation loop
 
     taskid = 0
@@ -387,8 +400,11 @@ def jobmanager(argv, job, jm, tasklist, completed):
             logging.debug('Pushing tasks to %s:%d...', tm.address, tm.port)
 
             # Task pushing loop
-            finished, taskid, task = push_tasks(job,
-                jm, tm, taskid, task, tasklist)
+            finished, taskid, task, sent = push_tasks(job, jm, tm,
+                taskid, task, tasklist)
+
+            # Add the sent tasks to the sumission list
+            submissions = submissions + sent
 
             # Close the connection with the task manager
             tm.Close()
@@ -396,13 +412,31 @@ def jobmanager(argv, job, jm, tasklist, completed):
             logging.debug('Finished pushing tasks to %s:%d.',
                 tm.address, tm.port)
 
-            # Exit the task manager loop only if all tasks have been
-            # received back from the task managers
-            # TODO if finished and len(tasklist) == 0:
-            if finished:
+            if finished and completed[0] == 0:
+                # Tell everyone the task generation was completed
                 logging.info('All tasks generated.')
                 completed[0] = 1
+
+            # Exit the job manager when done
+            if len(tasklist) == 0 and completed[0] == 1:
                 return
+
+            # Keep sending the uncommitted tasks
+            # TODO: WARNING this will flood the system
+            # with repeated tasks
+            if finished and len(tasklist) > 0:
+                if len(submissions) == 0:
+                    logging.critical('The submission list is empty but '
+                        'the task list is not! Some tasks were lost!')
+
+                # Select the oldest task that is not already completed
+                while True:
+                    taskid, task = submissions.pop(0)
+                    if taskid in tasklist:
+                        break
+
+        # Remove the committed tasks from the submission list
+        submissions = [x for x in submissions if x[0] in tasklist]
 
         time.sleep(0.25)
 
@@ -451,6 +485,10 @@ def committer(argv, job, co, tasklist, completed):
             if len(tasklist) == 0 and completed[0] == 1:
                 logging.info('All tasks committed.')
                 return
+
+        # Refresh the tasklist
+        for taskid in completed:
+            tasklist.pop(taskid, 0)
 
         time.sleep(2)
 
