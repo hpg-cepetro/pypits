@@ -17,7 +17,7 @@
 #  GNU General Public License for more details.
 #
 
-import ctypes, os, struct, sys
+import ctypes, os, struct, sys, logging
 
 # TODO try-except around C calls
 
@@ -80,7 +80,7 @@ class JobBinary(object):
         if it == None or len(it) == 0:
             return ctypes.c_void_p(None), 0
         # Normal C allocation
-        cit = (ctypes.c_ubyte * len(it))()
+        cit = (ctypes.c_byte * len(it))()
         cit[:] = self.unbyte(it)
         citsz = ctypes.c_longlong(len(it))
         return cit, citsz
@@ -103,7 +103,7 @@ class JobBinary(object):
                 data[0] = None
                 size[0] = 0
             else:
-                cdata = (ctypes.c_ubyte * len(pdata))()
+                cdata = (ctypes.c_byte * len(pdata))()
                 cdata[:] = self.unbyte(pdata)
                 data[0] = ctypes.cast(cdata, ctypes.c_void_p)
                 size[0] = len(pdata)
@@ -133,7 +133,7 @@ class JobBinary(object):
             ctypes.pointer(ctask), ctypes.pointer(ctasksz))
 
         # Convert the task to python
-        task = ctypes.cast(ctask, ctypes.POINTER(ctypes.c_ubyte))
+        task = ctypes.cast(ctask, ctypes.POINTER(ctypes.c_byte))
         task = self.bytes(task[0:ctasksz.value])
 
         return r, task
@@ -169,7 +169,7 @@ class JobBinary(object):
             ctypes.pointer(cres), ctypes.pointer(cressz))
 
         # Convert the result to python
-        res = ctypes.cast(cres, ctypes.POINTER(ctypes.c_ubyte))
+        res = ctypes.cast(cres, ctypes.POINTER(ctypes.c_byte))
         res = self.bytes(res[0:cressz.value])
 
         return r, res
@@ -208,7 +208,7 @@ class JobBinary(object):
             ctypes.pointer(cfres), ctypes.pointer(cfressz))
 
         # Convert the result to python
-        fres = ctypes.cast(cfres, ctypes.POINTER(ctypes.c_ubyte))
+        fres = ctypes.cast(cfres, ctypes.POINTER(ctypes.c_byte))
         fres = self.bytes(fres[0:cfressz.value])
 
         return r, fres
