@@ -197,6 +197,8 @@ def worker(state, taskid, task, cqueue, job, argv):
     # Execute the task using the job module
     r, res = job.spits_worker_run(state, task)
 
+    logging.info('Task %d processed.', taskid)
+
     # Enqueue the result
     cqueue.put((taskid, r, res))
 
