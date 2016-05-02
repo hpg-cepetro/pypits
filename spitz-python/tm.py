@@ -57,6 +57,8 @@ def parse_global_config(argdict):
     tm_addr = argdict.get('tmaddr', '0.0.0.0')
     tm_port = int(argdict.get('tmport', config.spitz_tm_port))
     tm_nw = int(argdict.get('nw', multiprocessing.cpu_count()))
+    if tm_nw <= 0:
+        tm_nw = multiprocessing.cpu_count()
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     tm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
