@@ -548,9 +548,17 @@ def run(argv, job):
 
     # Commit the job
     logging.info('Committing Job...')
-    r, res = job.spits_committer_commit_job(co)
+    r, res, ctx = job.spits_committer_commit_job(co, 0x12345678)
+    
+    if res == None:
+        logging.error('Job did not push any result!')
+        return messaging.res_module_noans, None
 
-    return r, res
+    if ctx != 0x12345678:
+        logging.error('Context verification failed for job!')
+        return messaging.res_module_ctxer, None
+
+    return r, res[0]
 
 ###############################################################################
 # Main routine

@@ -49,6 +49,13 @@ class JobBinary(object):
             ctypes.POINTER(ctypes.c_void_p),
             ctypes.POINTER(ctypes.c_longlong))
 
+        # Create the c function for the pusher callback
+        self.cpusher = ctypes.CFUNCTYPE(
+            None,
+            ctypes.c_void_p,
+            ctypes.c_longlong,
+            ctypes.c_void_p)
+
     def c_argv(self, argv):
         # Encode the string to byte array
         argv = [x.encode('utf8') for x in argv]
@@ -84,6 +91,11 @@ class JobBinary(object):
         cit[:] = self.unbyte(it)
         citsz = ctypes.c_longlong(len(it))
         return cit, citsz
+
+    def to_py_array(self, v, sz):
+        v = ctypes.cast(v, ctypes.POINTER(ctypes.c_byte))
+        return self.bytes(v[0:sz])
+        
 
     def spits_main(self, argv, runner):
         # Call the runner if the job does not have an initializer
@@ -133,8 +145,7 @@ class JobBinary(object):
             ctypes.pointer(ctask), ctypes.pointer(ctasksz))
 
         # Convert the task to python
-        task = ctypes.cast(ctask, ctypes.POINTER(ctypes.c_byte))
-        task = self.bytes(task[0:ctasksz.value])
+        task = self.to_py_array(ctask, ctasksz.value)
 
         return r, task
 
@@ -153,26 +164,24 @@ class JobBinary(object):
 
         return ctypes.c_void_p(self.module.spits_worker_new(cargc, cargv))
 
-    def spits_worker_run(self, user_data, task):
+    def spits_worker_run(self, user_data, task, taskctx):
+        res = [None, None, None]
+
         # Create the pointer to task and task size
         ctask, ctasksz = self.to_c_array(task)
-        #ctask = (ctypes.c_ubyte * len(task))()
-        #ctask[:] = self.unbyte(task)
-        #ctasksz = ctypes.c_longlong(len(task))
 
-        # Create the pointer to task and task size
-        cres = ctypes.c_void_p()
-        cressz = ctypes.c_longlong()
+        # Create an inner converter for the callback
+        def push(cres, cressz, ctx):
+            # Thanks to python closures, the context is not 
+            # necessary, in any case, check for correctness
+            res[1] = (self.to_py_array(cres, cressz),)
+            res[2] = ctx
 
         # Run the task
-        r = self.module.spits_worker_run(user_data, ctask, ctasksz,
-            ctypes.pointer(cres), ctypes.pointer(cressz))
+        res[0] = self.module.spits_worker_run(user_data, ctask, ctasksz, 
+            self.cpusher(push), ctypes.c_void_p(taskctx))
 
-        # Convert the result to python
-        res = ctypes.cast(cres, ctypes.POINTER(ctypes.c_byte))
-        res = self.bytes(res[0:cressz.value])
-
-        return r, res
+        return res
 
     def spits_worker_finalize(self, user_data):
         # Optional function
@@ -192,26 +201,24 @@ class JobBinary(object):
     def spits_committer_commit_pit(self, user_data, result):
         # Create the pointer to result and result size
         cres, cressz = self.to_c_array(result)
-        #cres = (ctypes.c_ubyte * len(result))()
-        #cres[:] = self.unbyte(result)
-        #cressz = ctypes.c_longlong(len(result))
 
         return self.module.spits_committer_commit_pit(user_data, cres, cressz)
 
-    def spits_committer_commit_job(self, user_data):
-        # Create the pointer to final result and final result size
-        cfres = ctypes.c_void_p()
-        cfressz = ctypes.c_longlong()
+    def spits_committer_commit_job(self, user_data, jobctx):
+        fres = [None, None, None]
+
+        # Create an inner converter for the callback
+        def push(cfres, cfressz, ctx):
+            # Thanks to python closures, the context is not 
+            # necessary, in any case, check for correctness
+            fres[1] = (self.to_py_array(cfres, cfressz),)
+            fres[2] = ctx
 
         # Commit job and get the final result
-        r = self.module.spits_committer_commit_job(user_data,
-            ctypes.pointer(cfres), ctypes.pointer(cfressz))
+        fres[0] = self.module.spits_committer_commit_job(user_data,
+            self.cpusher(push), ctypes.c_void_p(jobctx))
 
-        # Convert the result to python
-        fres = ctypes.cast(cfres, ctypes.POINTER(ctypes.c_byte))
-        fres = self.bytes(fres[0:cfressz.value])
-
-        return r, fres
+        return fres
 
     def spits_committer_finalize(self, user_data):
         # Optional function

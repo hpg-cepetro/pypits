@@ -139,8 +139,11 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
                     # Send the task
                     conn.WriteInt64(taskid)
                     conn.WriteInt64(r)
-                    conn.WriteInt64(len(res))
-                    conn.Write(res)
+                    if res == None:
+                        conn.WriteInt64(0)
+                    else:
+                        conn.WriteInt64(len(res))
+                        conn.Write(res)
 
                     # Wait for the confirmation that the task has
                     # been received by the other side
@@ -197,12 +200,20 @@ def worker(state, taskid, task, cqueue, job, argv):
     logging.info('Processing task %d...', taskid)
 
     # Execute the task using the job module
-    r, res = job.spits_worker_run(state, task)
+    r, res, ctx = job.spits_worker_run(state, task, taskid)
 
     logging.info('Task %d processed.', taskid)
 
+    if res == None:
+        logging.error('Task %d did not push any result!', taskid)
+        return
+
+    if ctx != taskid:
+        logging.error('Context verification failed for task %d!', taskid)
+        return
+
     # Enqueue the result
-    cqueue.put((taskid, r, res))
+    cqueue.put((taskid, r, res[0]))
 
 ###############################################################################
 # Run routine

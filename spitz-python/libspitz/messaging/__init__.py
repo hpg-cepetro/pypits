@@ -38,6 +38,8 @@ msg_terminate = 0xFFFF
 # bits of the result variable that an error
 # occurred with the function call itself
 res_module_error = 0xFFFFFFFF00000000
+res_module_noans = 0xFFFFFFFE00000000
+res_module_ctxer = 0xFFFFFFFD00000000
 
 # Definition of the recv method for sockets, considering
 # a definite size and timeout

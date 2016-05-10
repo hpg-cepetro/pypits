@@ -16,50 +16,66 @@
  *  GNU General Public License for more details.
  */
 
- /* Python version of spits use cdecl calling convention */
+#ifndef __SPITZ_H__
+#define __SPITZ_H__
 
-#if defined(__GNUC__)
-#define __cdecl __attribute__((__cdecl__))
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+ /* Python version of spits uses cdecl calling convention */
 
 /* The size used to pass messages is 64 bit */
 
 typedef long long int spitzsize_t;
 
+typedef const void* spitzctx_t;
+
 /* Runner callback that executes the task distribution and committing */
 
-typedef int (*runner_t)(int, const char **, const void**, spitzsize_t*);
+typedef int (*runner_t)(int, const char**, const void**, spitzsize_t*);
+
+/* Pusher callback that performs result submission from a worker */
+
+typedef void (*pusher_t)(const void*, spitzsize_t, spitzctx_t);
 
 /* Spits main */
 
-int __cdecl spits_main(int argc, const char* argv[], runner_t runner);
+int spits_main(int argc, const char* argv[], runner_t run);
 
 /* Job Manager */
 
-void* __cdecl spits_job_manager_new(int argc, const char *argv[]);
+void* spits_job_manager_new(int argc, const char *argv[]);
 
-int __cdecl spits_job_manager_next_task(void *user_data, const void** task,
-    spitzsize_t* tasksz);
+int spits_job_manager_next_task(void *user_data, 
+    const void** task, spitzsize_t* tasksz);
 
-int __cdecl spits_job_manager_finalize(void *user_data);
+void spits_job_manager_finalize(void *user_data);
 
 /* Worker */
 
-void* __cdecl spits_worker_new(int argc, const char *argv[]);
+void* spits_worker_new(int argc, const char *argv[]);
 
-int __cdecl spits_worker_run(void *user_data, const void* task,
-    spitzsize_t tasksz, const void** result, spitzsize_t* resultsz);
+int spits_worker_run(void *user_data, const void* task, 
+    spitzsize_t tasksz, pusher_t push_result, 
+    spitzctx_t taskctx);
 
-int __cdecl spits_worker_finalize(void *user_data);
+void spits_worker_finalize(void *user_data);
 
 /* Committer */
 
-void* __cdecl spits_committer_new(int argc, const char *argv[]);
+void* spits_committer_new(int argc, const char *argv[]);
 
-int __cdecl spits_committer_commit_pit(void *user_data,
+int spits_committer_commit_pit(void *user_data,
     const void* result, spitzsize_t resultsz);
 
-int __cdecl spits_committer_commit_job(void *user_data,
-    const void** final_result, spitzsize_t* final_resultsz);
+int spits_committer_commit_job(void *user_data,
+    pusher_t push_final_result, spitzctx_t jobctx);
 
-int __cdecl spits_committer_finalize(void *user_data);
+void spits_committer_finalize(void *user_data);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __SPITZ_H__ */
