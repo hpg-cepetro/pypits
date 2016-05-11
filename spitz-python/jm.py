@@ -543,12 +543,19 @@ def run(argv, job):
         args=(argv, job, co, tasklist, completed))
     cothread.start()
 
+    # Wait for both threads
     jmthread.join()
     cothread.join()
+
+    # Finalize the job manager
+    job.spits_job_manager_finalize(jm)
 
     # Commit the job
     logging.info('Committing Job...')
     r, res, ctx = job.spits_committer_commit_job(co, 0x12345678)
+
+    # Finalize the committer
+    job.spits_committer_finalize(co)
     
     if res == None:
         logging.error('Job did not push any result!')
