@@ -547,16 +547,19 @@ def run(argv, job):
     jmthread.join()
     cothread.join()
 
-    # Finalize the job manager
-    job.spits_job_manager_finalize(jm)
-
     # Commit the job
     logging.info('Committing Job...')
     r, res, ctx = job.spits_committer_commit_job(co, 0x12345678)
+    logging.debug('Job committed.')
+
+    # Finalize the job manager
+    logging.debug('Finalizing Job Manager...')
+    job.spits_job_manager_finalize(jm)
 
     # Finalize the committer
+    logging.debug('Finalizing Committer...')
     job.spits_committer_finalize(co)
-    
+
     if res == None:
         logging.error('Job did not push any result!')
         return messaging.res_module_noans, None
@@ -565,6 +568,7 @@ def run(argv, job):
         logging.error('Context verification failed for job!')
         return messaging.res_module_ctxer, None
 
+    logging.debug('Job finished successfully.')
     return r, res[0]
 
 ###############################################################################
