@@ -255,15 +255,19 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
             task = newtask[0]
             tasklist[taskid] = (0, task)
 
-            logging.debug('Generated task %d (%d bytes).', taskid, len(task))
+            logging.debug('Generated task %d with payload size of %d bytes.', 
+                taskid, len(task) if task != None else 0)
 
         try:
             logging.debug('Pushing %d...', taskid)
 
             # Push the task to the active task manager
             tm.WriteInt64(taskid)
-            tm.WriteInt64(len(task))
-            tm.Write(task)
+            if task == None:
+                tm.WriteInt64(0)
+            else:
+                tm.WriteInt64(len(task))
+                tm.Write(task)
 
             # Wait for a response
             response = tm.ReadInt64(jm_recv_timeout)
