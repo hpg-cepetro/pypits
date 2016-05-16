@@ -135,19 +135,21 @@ class JobBinary(object):
 
         return ctypes.c_void_p(self._spits_job_manager_new(cargc, cargv))
 
-    def spits_job_manager_next_task(self, user_data):
-        # Create the pointer to task and task size
-        ctask = ctypes.c_void_p()
-        ctasksz = ctypes.c_longlong()
+    def spits_job_manager_next_task(self, user_data, jmctx):
+        res = [None, None, None]
+        
+        # Create an inner converter for the callback
+        def push(ctask, ctasksz, ctx):
+            # Thanks to python closures, the context is not 
+            # necessary, in any case, check for correctness
+            res[1] = (self.to_py_array(ctask, ctasksz),)
+            res[2] = ctx
 
         # Get the next task
-        r = self.module.spits_job_manager_next_task(user_data,
-            ctypes.pointer(ctask), ctypes.pointer(ctasksz))
+        res[0] = self.module.spits_job_manager_next_task(user_data,
+            self.cpusher(push), ctypes.c_void_p(jmctx))
 
-        # Convert the task to python
-        task = self.to_py_array(ctask, ctasksz.value)
-
-        return r, task
+        return res
 
     def spits_job_manager_finalize(self, user_data):
         # Optional function

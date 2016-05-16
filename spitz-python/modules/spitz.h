@@ -48,7 +48,7 @@ int spits_main(int argc, const char* argv[], runner_t run);
 void* spits_job_manager_new(int argc, const char *argv[]);
 
 int spits_job_manager_next_task(void *user_data, 
-    const void** task, spitzsize_t* tasksz);
+    pusher_t push_task, spitzctx_t jmctx);
 
 void spits_job_manager_finalize(void *user_data);
 

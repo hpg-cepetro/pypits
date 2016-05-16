@@ -234,17 +234,28 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
     while True:
         if task == None:
             # Only get a task if the last one was already sent
-            taskid += 1
-            r1, task = job.spits_job_manager_next_task(jm)
-
+            newtaskid = taskid + 1
+            r1, newtask, ctx = job.spits_job_manager_next_task(jm, newtaskid)
+            
             # Exit if done
             if r1 == 0:
                 return (True, 0, None, sent)
+            
+            if newtask == None:
+                logging.error('Task %d was not pushed!', newtaskid)
+                return (False, taskid, task, sent)
+
+            if ctx != newtaskid:
+                logging.error('Context verification failed for task %d!', 
+                    newtaskid)
+                return (False, taskid, task, sent)
 
             # Add the generated task to the tasklist
+            taskid = newtaskid
+            task = newtask[0]
             tasklist[taskid] = (0, task)
 
-            logging.debug('Generated task %d.', taskid)
+            logging.debug('Generated task %d (%d bytes).', taskid, len(task))
 
         try:
             logging.debug('Pushing %d...', taskid)
