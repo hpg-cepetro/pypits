@@ -100,7 +100,7 @@ class JobBinary(object):
     def spits_main(self, argv, runner):
         # Call the runner if the job does not have an initializer
         if not hasattr(self.module, 'spits_main'):
-            return runner(len(argv), argv, module, None)
+            return runner(argv)
 
         # Create an inner converter for the callback
         def run(argc, argv, data, size):
