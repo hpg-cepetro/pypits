@@ -33,22 +33,22 @@ typedef const void* spitzctx_t;
 
 /* Runner callback that executes the task distribution and committing */
 
-typedef int (*runner_t)(int, const char**, const void**, spitzsize_t*);
+typedef int (*spitzrun_t)(int, const char**, const void**, spitzsize_t*);
 
 /* Pusher callback that performs result submission from a worker */
 
-typedef void (*pusher_t)(const void*, spitzsize_t, spitzctx_t);
+typedef void (*spitzpush_t)(const void*, spitzsize_t, spitzctx_t);
 
 /* Spits main */
 
-int spits_main(int argc, const char* argv[], runner_t run);
+int spits_main(int argc, const char* argv[], spitzrun_t run);
 
 /* Job Manager */
 
 void* spits_job_manager_new(int argc, const char *argv[]);
 
 int spits_job_manager_next_task(void *user_data, 
-    pusher_t push_task, spitzctx_t jmctx);
+    spitzpush_t push_task, spitzctx_t jmctx);
 
 void spits_job_manager_finalize(void *user_data);
 
@@ -57,7 +57,7 @@ void spits_job_manager_finalize(void *user_data);
 void* spits_worker_new(int argc, const char *argv[]);
 
 int spits_worker_run(void *user_data, const void* task, 
-    spitzsize_t tasksz, pusher_t push_result, 
+    spitzsize_t tasksz, spitzpush_t push_result, 
     spitzctx_t taskctx);
 
 void spits_worker_finalize(void *user_data);
@@ -70,7 +70,7 @@ int spits_committer_commit_pit(void *user_data,
     const void* result, spitzsize_t resultsz);
 
 int spits_committer_commit_job(void *user_data,
-    pusher_t push_final_result, spitzctx_t jobctx);
+    spitzpush_t push_final_result, spitzctx_t jobctx);
 
 void spits_committer_finalize(void *user_data);
 
