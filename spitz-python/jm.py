@@ -25,6 +25,7 @@ import sys, threading, os, time, ctypes, logging, struct, threading, traceback
 
 # Global configuration parameters
 jm_killtms = None # Kill task managers after execution
+jm_log_file = None # Output file for logging
 jm_conn_timeout = None # Socket connect timeout
 jm_recv_timeout = None # Socket receive timeout
 jm_send_timeout = None # Socket send timeout
@@ -33,8 +34,8 @@ jm_send_timeout = None # Socket send timeout
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global jm_killtms, tm_addr, tm_port, tm_nw, tm_conn_timeout, \
-        tm_recv_timeout, tm_send_timeout
+    global jm_killtms, jm_log_file, jm_conn_timeout, \
+        jm_recv_timeout, jm_send_timeout
 
     def as_int(v):
         if v == None:
@@ -52,6 +53,7 @@ def parse_global_config(argdict):
         return bool(v)
 
     jm_killtms = as_bool(argdict.get('killtms', True))
+    jm_log_file = argdict.get('log', None)
     jm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     jm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     jm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
@@ -63,7 +65,10 @@ def setup_log():
     root = logging.getLogger()
     root.setLevel(logging.DEBUG)
     root.handlers = []
-    ch = logging.StreamHandler(sys.stderr)
+    if jm_log_file == None:
+        ch = logging.StreamHandler(sys.stderr)
+    else:
+        ch = logging.StreamHandler(open(jm_log_file, 'wt'))
     ch.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(asctime)s - %(threadName)s - '+
         '%(levelname)s - %(message)s')
@@ -590,10 +595,6 @@ def run(argv, job):
 # Main routine
 ###############################################################################
 def main(argv):
-    # Setup logging
-    setup_log()
-    logging.debug('Hello!')
-
     # Print usage
     if len(argv) <= 1:
         abort('USAGE: jm module [module args]')
@@ -601,6 +602,10 @@ def main(argv):
     # Parse the arguments
     args = Args.Args(argv)
     parse_global_config(args.args)
+    
+    # Setup logging
+    setup_log()
+    logging.debug('Hello!')
 
     # Load the module
     module = args.margs[0]
