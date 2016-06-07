@@ -27,14 +27,12 @@ except:
 class TaskPool(object):
     """description of class"""
 
-    def __init__(self, max_threads, initializer, worker, user_args):
+    def __init__(self, max_threads, overfill, initializer, worker, user_args):
         self.max_threads = max_threads
         self.user_args = user_args
-        self.lock = threading.Lock()
-        self.tasks = queue.Queue()
         self.initializer = initializer
         self.worker = worker
-        self.active = 0
+        self.tasks = queue.Queue(maxsize=max_threads + overfill)
         self.threads = [threading.Thread(target=self.runner) for
             i in range(max_threads)]
 
@@ -58,32 +56,13 @@ class TaskPool(object):
             except:
                 logging.error('The worker crashed while processing ' +
                     'the task %d', taskid)
-            self.dec()
-
-    def test(self):
-        return self.active < self.max_threads
-
-    def inc(self):
-        success = False
-        self.lock.acquire()
-        if self.test():
-            self.active += 1
-            success = True
-        self.lock.release()
-        return success
-
-    def dec(self):
-        self.lock.acquire()
-        if self.active > 0:
-            self.active -= 1
-        self.lock.release()
 
     def Put(self, taskid, task):
-        if self.inc():
-            self.tasks.put((taskid, task))
-            return True
-        else:
+        try:
+            self.tasks.put_nowait((taskid, task))
+        except queue.Full:
             return False
+        return True
 
     def Full(self):
-        return not self.test()
+        return self.tasks.full()

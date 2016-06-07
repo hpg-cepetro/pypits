@@ -33,6 +33,7 @@ except:
 tm_addr = None # Bind address
 tm_port = None # Bind port
 tm_nw = None # Maximum number of workers
+tm_overfill = 0 # Extra space in the task queue 
 tm_log_file = None # Output file for logging
 tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
@@ -42,8 +43,8 @@ tm_send_timeout = None # Socket send timeout
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global tm_addr, tm_port, tm_nw, tm_log_file, tm_conn_timeout, \
-        tm_recv_timeout, tm_send_timeout
+    global tm_addr, tm_port, tm_nw, tm_log_file, tm_overfill, \
+        tm_conn_timeout, tm_recv_timeout, tm_send_timeout
 
     def as_int(v):
         if v == None:
@@ -60,6 +61,7 @@ def parse_global_config(argdict):
     tm_nw = int(argdict.get('nw', multiprocessing.cpu_count()))
     if tm_nw <= 0:
         tm_nw = multiprocessing.cpu_count()
+    tm_overfill = max(int(argdict.get('overfill', 0)), 0)
     tm_log_file = argdict.get('log', None)
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
@@ -226,7 +228,8 @@ def worker(state, taskid, task, cqueue, job, argv):
 def run(argv, job):
     # Create a work pool and a commit queue
     cqueue = queue.Queue()
-    tpool = TaskPool(tm_nw, initializer, worker, (cqueue, job, argv))
+    tpool = TaskPool(tm_nw, tm_overfill, initializer, 
+        worker, (cqueue, job, argv))
 
     # Create the server
     logging.info('Starting network listener...')
