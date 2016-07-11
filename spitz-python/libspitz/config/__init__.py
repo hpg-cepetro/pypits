@@ -29,3 +29,5 @@ spitz_tm_port = 7727
 
 mode_tcp = 'tcp'
 mode_uds = 'uds'
+
+announce_cat_nodes = 'cat'

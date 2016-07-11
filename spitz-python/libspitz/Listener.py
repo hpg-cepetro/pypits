@@ -35,7 +35,7 @@ class Listener(object):
         self.socket = None
         
     def GetConnectableAddr(self):
-        addr = self.mode
+        addr = '' #self.mode
         if self.mode == config.mode_tcp:
             addr += socket.gethostname() + ':' + str(self.port)
         elif self.mode == config.mode_uds:

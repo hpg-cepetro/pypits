@@ -35,7 +35,7 @@ tm_addr = None # Bind address
 tm_port = None # Bind port
 tm_nw = None # Maximum number of workers
 tm_overfill = 0 # Extra space in the task queue 
-tn_announce = None # Mechanism used to broadcast TM address
+tm_announce = None # Mechanism used to broadcast TM address
 tm_log_file = None # Output file for logging
 tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
@@ -46,7 +46,7 @@ tm_send_timeout = None # Socket send timeout
 ###############################################################################
 def parse_global_config(argdict):
     global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_overfill, \
-        tn_announce, tm_conn_timeout, tm_recv_timeout, tm_send_timeout
+        tm_announce, tm_conn_timeout, tm_recv_timeout, tm_send_timeout
 
     def as_int(v):
         if v == None:
@@ -65,7 +65,7 @@ def parse_global_config(argdict):
     if tm_nw <= 0:
         tm_nw = multiprocessing.cpu_count()
     tm_overfill = max(int(argdict.get('overfill', 0)), 0)
-    tn_announce = argdict.get('announce', 'none')
+    tm_announce = argdict.get('announce', 'none')
     tm_log_file = argdict.get('log', None)
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
@@ -94,6 +94,24 @@ def setup_log():
 def abort(error):
     logging.critical(error)
     exit(1)
+    
+###############################################################################
+# Append the node address to the nodes list
+###############################################################################
+def announce_cat(addr, filename = None):
+    # Override the filename if it is empty
+    if filename == None:
+        nodefile = 'nodes.txt'
+        filename = os.path.join('.', nodefile)
+
+    logging.debug('Appending node %s to file %s...' % (addr, nodefile))
+    
+    try:
+        f = open(filename, "a")
+        f.write("node %s\n" % addr)
+        f.close()
+    except:
+        logging.warning('Failed to write to %s!' % (nodefile,))
 
 ###############################################################################
 # Server callback
@@ -239,9 +257,18 @@ def run(argv, job):
     logging.info('Starting network listener...')
     l = Listener(tm_mode, tm_addr, tm_port, 
         server_callback, (job, tpool, cqueue))
-
-    # Start the server and wait for work
+        
+        
+    # Start the server^M
     l.Start()
+    
+    # Announce the worker
+    logging.info('ANNOUNCE %s' % l.GetConnectableAddr())
+    
+    if tm_announce == config.announce_cat_nodes:
+        announce_cat(l.GetConnectableAddr())
+
+    # Wait for work^M
     logging.info('Waiting for work...')
     l.Join()
 
