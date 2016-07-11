@@ -30,10 +30,12 @@ except:
     import queue # Python 3
 
 # Global configuration parameters
+tm_mode = None # Addressing mode
 tm_addr = None # Bind address
 tm_port = None # Bind port
 tm_nw = None # Maximum number of workers
 tm_overfill = 0 # Extra space in the task queue 
+tn_announce = None # Mechanism used to broadcast TM address
 tm_log_file = None # Output file for logging
 tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
@@ -43,8 +45,8 @@ tm_send_timeout = None # Socket send timeout
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global tm_addr, tm_port, tm_nw, tm_log_file, tm_overfill, \
-        tm_conn_timeout, tm_recv_timeout, tm_send_timeout
+    global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_overfill, \
+        tn_announce, tm_conn_timeout, tm_recv_timeout, tm_send_timeout
 
     def as_int(v):
         if v == None:
@@ -56,12 +58,14 @@ def parse_global_config(argdict):
             return None
         return int(v)
 
+    tm_mode = argdict.get('tmmode', config.mode_tcp)
     tm_addr = argdict.get('tmaddr', '0.0.0.0')
     tm_port = int(argdict.get('tmport', config.spitz_tm_port))
     tm_nw = int(argdict.get('nw', multiprocessing.cpu_count()))
     if tm_nw <= 0:
         tm_nw = multiprocessing.cpu_count()
     tm_overfill = max(int(argdict.get('overfill', 0)), 0)
+    tn_announce = argdict.get('announce', 'none')
     tm_log_file = argdict.get('log', None)
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
@@ -233,7 +237,8 @@ def run(argv, job):
 
     # Create the server
     logging.info('Starting network listener...')
-    l = Listener(tm_addr, tm_port, server_callback, (job, tpool, cqueue))
+    l = Listener(tm_mode, tm_addr, tm_port, 
+        server_callback, (job, tpool, cqueue))
 
     # Start the server and wait for work
     l.Start()

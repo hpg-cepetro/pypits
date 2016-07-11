@@ -18,34 +18,51 @@
 #
 
 from libspitz import ClientEndpoint
+from libspitz import config
 
 import socket, threading, time, logging, os, traceback, sys
 
 class Listener(object):
     """Threaded TCP/UDS listener with callback"""
 
-    def __init__(self, address, port, callback, user_args):
+    def __init__(self, mode, address, port, callback, user_args):
+        self.mode = mode
         self.addr = address
         self.port = port
         self.callback = callback
         self.user_args = user_args
         self.thread = None
         self.socket = None
+        
+    def GetConnectableAddr(self):
+        addr = self.mode
+        if self.mode == config.mode_tcp:
+            addr += socket.gethostname() + ':' + str(self.port)
+        elif self.mode == config.mode_uds:
+            addr += socket.gethostname() + ':' + str(self.addr)
+        else:
+            logging.error('Invalid listener mode %s provided!' % (self.mode))
+            raise Exception()
+        return addr
 
     def listener(self):
-        logging.info('Listening to network at %s:%d...',
-            self.addr, self.port)
+        if self.mode == config.mode_tcp:
+            logging.info('Listening to network at %s:%d...',
+                self.addr, self.port)
+        elif self.mode == config.mode_uds:
+            logging.info('Listening to file at %s...',
+                self.addr)
         while True:
             try:
                 conn, addr = self.socket.accept()
 
                 # Assign the address from the connection
-                if self.port > 0:
+                if self.mode == config.mode_tcp:
                     # TCP
                     addr, port = addr
-                else:
+                elif self.mode == config.mode_uds:
                     # UDS
-                    addr = 'socks'
+                    addr = 'uds'
                     port = 0
 
                 # Create the endpoint and send to a thread to
@@ -62,33 +79,49 @@ class Listener(object):
     def Start(self):
         if self.socket:
             return
-
-        if self.port <= 0:
+        
+        if self.mode == config.mode_tcp:
+            # Create a TCP socket
+            socktype = socket.AF_INET
+            sockaddr = (self.addr, self.port)
+        elif self.mode == config.mode_uds:
             # Remove an old socket
             try:
                 os.unlink(self.addr)
             except:
                 pass
-
+            
             # Create an Unix Data Socket instead of a
             # normal TCP socket
             try:
                 socktype = socket.AF_UNIX
             except AttributeError:
                 logging.error('The system does not support ' +
-                    'Unix Domain Sockets')
+                    'Unix Domain Sockets!')
                 raise
             sockaddr = self.addr
-
         else:
-            # Create a TCP socket
-            socktype = socket.AF_INET
-            sockaddr = (self.addr, self.port)
-
-        self.socket = socket.socket(socktype, socket.SOCK_STREAM)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.socket.bind(sockaddr)
-        self.socket.listen(1)
+            logging.error('Invalid listener mode %s provided!' % (self.mode))
+            raise Exception()
+        
+        try:
+            self.socket = socket.socket(socktype, socket.SOCK_STREAM)
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        except socket.error:
+            logging.error('Failed to create listener socket!')
+            
+        try:    
+            self.socket.bind(sockaddr)
+            self.socket.listen(1)
+        except socket.error:
+            logging.error('Failed to bind listener socket!')
+            
+        # If any port is selected, get the 
+        # actual port assigned by the system
+        if self.mode == config.mode_tcp and self.port == 0:
+            addr, port = self.socket.getsockname()
+            self.port = port
+            
         self.thread = threading.Thread(target=self.listener)
         self.thread.start()
 
@@ -96,7 +129,7 @@ class Listener(object):
         if self.socket:
             self.socket.close()
             self.socket = None
-            if self.port <= 0:
+            if self.mode == config.mode_uds:
                 # Remove the socket file if it is an UDS
                 try:
                     os.unlink(self.addr)

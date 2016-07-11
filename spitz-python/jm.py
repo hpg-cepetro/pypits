@@ -29,13 +29,15 @@ jm_log_file = None # Output file for logging
 jm_conn_timeout = None # Socket connect timeout
 jm_recv_timeout = None # Socket receive timeout
 jm_send_timeout = None # Socket send timeout
+jm_send_backoff = None # Job Manager delay between sending tasks
+jm_recv_backoff = None # Job Manager delay between sending tasks
 
 ###############################################################################
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global jm_killtms, jm_log_file, jm_conn_timeout, \
-        jm_recv_timeout, jm_send_timeout
+    global jm_killtms, jm_log_file, jm_conn_timeout, jm_recv_timeout, \
+        jm_send_timeout, jm_send_backoff, jm_recv_backoff
 
     def as_int(v):
         if v == None:
@@ -57,6 +59,8 @@ def parse_global_config(argdict):
     jm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     jm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     jm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
+    jm_recv_backoff = as_float(argdict.get('rbackoff', config.recv_backoff))
+    jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
 
 ###############################################################################
 # Configure the log output format
@@ -458,7 +462,7 @@ def jobmanager(argv, job, jm, tasklist, completed):
         # Remove the committed tasks from the submission list
         submissions = [x for x in submissions if x[0] in tasklist]
 
-        time.sleep(0.25)
+        time.sleep(jm_send_backoff)
 
 ###############################################################################
 # Committer routine
@@ -510,7 +514,7 @@ def committer(argv, job, co, tasklist, completed):
         for taskid in completed:
             tasklist.pop(taskid, 0)
 
-        time.sleep(2)
+        time.sleep(jm_recv_backoff)
 
 ###############################################################################
 # Kill all task managers

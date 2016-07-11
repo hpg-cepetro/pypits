@@ -21,5 +21,11 @@ send_timeout = None
 recv_timeout = None
 conn_timeout = None
 
+send_backoff = 0.25
+recv_backoff = 2
+
 spitz_jm_port = 7726
 spitz_tm_port = 7727
+
+mode_tcp = 'tcp'
+mode_uds = 'uds'
