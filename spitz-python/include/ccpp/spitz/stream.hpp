@@ -176,6 +176,13 @@ namespace spitz {
         }
 
     public:
+        istream() : 
+            pdata(reinterpret_cast<const uint8_t*>(0)), 
+            sz(0), 
+            pos(0) 
+        { 
+        }
+            
         istream(const void *data, const size_t& size) : 
             pdata(reinterpret_cast<const uint8_t*>(data)), 
             sz(size), 

@@ -64,10 +64,13 @@ namespace spitz {
         {
         }
         
-        int run(int argc, const char** argv, const void** pfinal_result, 
-            spitssize_t* pfinal_result_size) const
+        int run(int argc, const char** argv, istream& final_result) const
         {
-            return this->runf(argc, argv, pfinal_result, pfinal_result_size);
+            const void* pfinal_result;
+            spitssize_t pfinal_result_size;
+            int r = this->runf(argc, argv, &pfinal_result, &pfinal_result_size);
+            final_result = istream(pfinal_result, pfinal_result_size);
+            return r;
         }
     };
     
@@ -76,9 +79,8 @@ namespace spitz {
     public:
         virtual int main(int argc, const char* argv[], const runner& runner)
         {
-            const void *p;
-            spitssize_t s;
-            return runner.run(argc, argv, &p, &s);
+            istream r;
+            return runner.run(argc, argv, r);
         }
         virtual ~spitz_main(){ }
     };
