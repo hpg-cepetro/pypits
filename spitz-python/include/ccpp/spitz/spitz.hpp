@@ -233,10 +233,18 @@ extern "C" void spits_committer_finalize(void *user_data)
 static void spitz_debug_pusher(const void* pdata, 
     spitssize_t size, spitsctx_t ctx)
 {
+    std::vector<uint8_t>* v = reinterpret_cast<std::vector<uint8_t>*>
+      (const_cast<void*>(ctx));
+
+    if (v->size() != 0) {
+        std::cerr << "[SPITZ] Push called more than once!" << std::endl;
+    }
+
+    v->push_back(1);
+
     std::copy(reinterpret_cast<const uint8_t*>(pdata), 
         reinterpret_cast<const uint8_t*>(pdata) + size, 
-        std::back_inserter(*reinterpret_cast<std::vector<uint8_t>*>
-        (const_cast<void*>(ctx))));
+        std::back_inserter(*v));
 }
 
 static int spitz_debug_runner(int argc, const char** argv, 
@@ -269,7 +277,7 @@ static int spitz_debug_runner(int argc, const char** argv,
         
         result.clear();
         std::cerr << "[SPITZ] Executing task " << tid << "..." << std::endl;
-        r1 = spits_worker_run(wk, task.data(), task.size(), 
+        r1 = spits_worker_run(wk, task.data()+1, task.size()-1, 
             spitz_debug_pusher, &result);
         
         if (r1 != 0) {
@@ -285,7 +293,7 @@ static int spitz_debug_runner(int argc, const char** argv,
         }
         
         std::cerr << "[SPITZ] Committing task " << tid << "..." << std::endl;
-        r2 = spits_committer_commit_pit(co, result.data(), result.size());
+        r2 = spits_committer_commit_pit(co, result.data()+1, result.size()-1);
         
         if (r2 != 0) {
             std::cerr << "[SPITZ] Task " << tid << "failed to commit!" 
@@ -306,12 +314,12 @@ static int spitz_debug_runner(int argc, const char** argv,
         exit(1);
     }
     
-    if (final_result->size() == 0) {
+    if (final_result->size() <= 1) {
         *pfinal_result = NULL;
         *pfinal_resultsz = 0;
     } else {
-        *pfinal_result = final_result->data();
-        *pfinal_resultsz = final_result->size();
+        *pfinal_result = final_result->data()+1;
+        *pfinal_resultsz = final_result->size()-1;
     }
     
     std::cerr << "[SPITZ] Finalizing task manager..." << std::endl;
@@ -335,8 +343,8 @@ dump_result_and_exit:
         std::stringstream ss;
         ss << "result-" << tid << ".dump";
         std::ofstream resfile(ss.str().c_str(), std::ofstream::binary);
-        resfile.write(reinterpret_cast<const char*>(result.data()), 
-            result.size());
+        resfile.write(reinterpret_cast<const char*>(result.data()+1), 
+            result.size()-1);
         resfile.close();
         std::cerr << "[SPITZ] Result dump generated as " << ss.str() << 
             " [" << result.size() << " bytes]. " << std::endl;
@@ -348,11 +356,11 @@ dump_task_and_exit:
         std::stringstream ss;
         ss << "task-" << tid << ".dump";
         std::ofstream taskfile(ss.str().c_str(), std::ofstream::binary);
-        taskfile.write(reinterpret_cast<const char*>(task.data()), 
-            task.size());
+        taskfile.write(reinterpret_cast<const char*>(task.data()+1), 
+            task.size()-1);
         taskfile.close();
         std::cerr << "[SPITZ] Task dump generated as " << ss.str() << 
-            " [" << task.size() << " bytes]. " << std::endl;
+            " [" << task.size()-1 << " bytes]. " << std::endl;
     }
     exit(1);
 }
