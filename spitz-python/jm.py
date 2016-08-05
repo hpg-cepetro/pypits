@@ -545,7 +545,7 @@ def killtms():
 ###############################################################################
 # Run routine
 ###############################################################################
-def run(argv, job):
+def run(argv, jobinfo, job):
     # List of pending tasks
     tasklist = {}
 
@@ -556,7 +556,7 @@ def run(argv, job):
     logging.info('Starting job manager...')
 
     # Create the job manager from the job module
-    jm = job.spits_job_manager_new(argv)
+    jm = job.spits_job_manager_new(argv, jobinfo)
 
     jmthread = threading.Thread(target=jobmanager,
         args=(argv, job, jm, tasklist, completed))
@@ -566,7 +566,7 @@ def run(argv, job):
     logging.info('Starting committer...')
 
     # Create the job manager from the job module
-    co = job.spits_committer_new(argv)
+    co = job.spits_committer_new(argv, jobinfo)
 
     cothread = threading.Thread(target=committer,
         args=(argv, job, co, tasklist, completed))
@@ -624,8 +624,8 @@ def main(argv):
     margv = args.margs
 
     # Wrapper to include job module
-    def run_wrapper(argv):
-        return run(argv, job)
+    def run_wrapper(argv, jobinfo):
+        return run(argv, jobinfo, job)
 
     # Run the module
     logging.info('Running module')

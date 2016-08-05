@@ -51,6 +51,8 @@ class JobBinary(object):
             ctypes.c_int,
             ctypes.c_int,
             ctypes.POINTER(ctypes.c_char_p),
+            ctypes.c_void_p,
+            ctypes.c_longlong,
             ctypes.POINTER(ctypes.c_void_p),
             ctypes.POINTER(ctypes.c_longlong))
 
@@ -101,19 +103,19 @@ class JobBinary(object):
         v = ctypes.cast(v, ctypes.POINTER(ctypes.c_byte))
         return self.bytes(v[0:sz])
         
-
     def spits_main(self, argv, runner):
         # Call the runner if the job does not have an initializer
         if not hasattr(self.module, 'spits_main'):
-            return runner(argv)
+            return runner(argv, None)
 
         # Create an inner converter for the callback
-        def run(argc, argv, data, size):
+        def run(argc, argv, jobinfo, jobinfosize, data, size):
             # Convert argc/argv back to a string list
             pargv = [argv[i].decode('utf8') for i in range(0, argc)]
+            pjobinfo = self.to_py_array(jobinfo, jobinfosize)
 
             # Run the runner code
-            r, pdata = runner(pargv)
+            r, pdata = runner(pargv, pjobinfo)
 
             # Convert the data result to a C pointer/size
             if pdata == None:
@@ -134,11 +136,13 @@ class JobBinary(object):
         # Call the C function
         return self.module.spits_main(cargc, cargv, crun)
 
-    def spits_job_manager_new(self, argv):
+    def spits_job_manager_new(self, argv, jobinfo):
         # Cast the C arguments
         cargc, cargv = self.c_argv(argv)
+        cjobinfo, cjobinfosz = self.to_c_array(jobinfo)
 
-        return ctypes.c_void_p(self._spits_job_manager_new(cargc, cargv))
+        return ctypes.c_void_p(self._spits_job_manager_new(cargc, cargv, 
+            cjobinfo, cjobinfosz))
 
     def spits_job_manager_next_task(self, user_data, jmctx):
         res = [None, None, None]
@@ -199,11 +203,13 @@ class JobBinary(object):
         # value inside user_data do its ctype will remain unchanged
         return self.module.spits_worker_finalize(user_data)
 
-    def spits_committer_new(self, argv):
+    def spits_committer_new(self, argv, jobinfo):
         # Cast the C arguments
         cargc, cargv = self.c_argv(argv)
-
-        return ctypes.c_void_p(self.module.spits_committer_new(cargc, cargv))
+        cjobinfo, cjobinfosz = self.to_c_array(jobinfo)
+        
+        return ctypes.c_void_p(self.module.spits_committer_new(cargc, cargv, 
+            cjobinfo, cjobinfosz))
 
     def spits_committer_commit_pit(self, user_data, result):
         # Create the pointer to result and result size

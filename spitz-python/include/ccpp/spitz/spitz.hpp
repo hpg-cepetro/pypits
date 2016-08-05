@@ -64,23 +64,45 @@ namespace spitz {
         {
         }
         
+        int run(int argc, const char** argv) const
+        {
+            ostream j;
+            istream r;
+            return run(argc, argv, j, r);
+        }
+        
         int run(int argc, const char** argv, istream& final_result) const
+        {
+            ostream j;
+            return run(argc, argv, j, final_result);
+        }
+        
+        int run(int argc, const char** argv, ostream& jobinfo) const
+        {
+            istream r;
+            return run(argc, argv, jobinfo, r);
+        }
+
+        int run(int argc, const char** argv, ostream& jobinfo, 
+            istream& final_result) const
         {
             const void* pfinal_result;
             spitssize_t pfinal_result_size;
-            int r = this->runf(argc, argv, &pfinal_result, &pfinal_result_size);
+            const void* pjobinfo = jobinfo.data();
+            spitssize_t pjobinfo_size = jobinfo.pos();
+            int r = this->runf(argc, argv, pjobinfo, pjobinfo_size, 
+                &pfinal_result, &pfinal_result_size);
             final_result = istream(pfinal_result, pfinal_result_size);
             return r;
         }
     };
     
     class spitz_main
-    {        
+    {
     public:
         virtual int main(int argc, const char* argv[], const runner& runner)
         {
-            istream r;
-            return runner.run(argc, argv, r);
+            return runner.run(argc, argv);
         }
         virtual ~spitz_main(){ }
     };
@@ -114,9 +136,9 @@ namespace spitz {
     {
     public:
         virtual spitz_main *create_spitz_main() { return new spitz_main(); }
-        virtual job_manager *create_job_manager(int, const char *[]) = 0;
+        virtual job_manager *create_job_manager(int, const char *[], istream&) = 0;
         virtual worker *create_worker(int, const char *[]) = 0;
-        virtual committer *create_committer(int, const char *[]) = 0;
+        virtual committer *create_committer(int, const char *[], istream&) = 0;
     };
 };
 
@@ -136,9 +158,11 @@ extern "C" int spits_main(int argc, const char* argv[], spitzrun_t run)
     return r;
 }
 
-extern "C" void *spits_job_manager_new(int argc, const char *argv[])
+extern "C" void *spits_job_manager_new(int argc, const char *argv[],
+    const void* jobinfo, spitssize_t jobinfosz)
 {
-    spitz::job_manager *jm = spitz_factory->create_job_manager(argc, argv);
+    spitz::istream ji(jobinfo, jobinfosz);
+    spitz::job_manager *jm = spitz_factory->create_job_manager(argc, argv, ji);
     return reinterpret_cast<void*>(jm);
 }
 
@@ -187,9 +211,11 @@ extern "C" void spits_worker_finalize(void *user_data)
     delete w;
 }
 
-extern "C" void *spits_committer_new(int argc, const char *argv[])
+extern "C" void *spits_committer_new(int argc, const char *argv[],
+    const void* jobinfo, spitssize_t jobinfosz)
 {
-    spitz::committer *co = spitz_factory->create_committer(argc, argv);
+    spitz::istream ji(jobinfo, jobinfosz);
+    spitz::committer *co = spitz_factory->create_committer(argc, argv, ji);
     return reinterpret_cast<void*>(co);
 }
 
@@ -248,10 +274,11 @@ static void spitz_debug_pusher(const void* pdata,
 }
 
 static int spitz_debug_runner(int argc, const char** argv, 
+    const void* pjobinfo, spitssize_t jobinfosz, 
     const void** pfinal_result, spitssize_t* pfinal_resultsz)
 {
-    void* jm = spits_job_manager_new(argc, argv);
-    void* co = spits_committer_new(argc, argv);
+    void* jm = spits_job_manager_new(argc, argv, pjobinfo, jobinfosz);
+    void* co = spits_committer_new(argc, argv, pjobinfo, jobinfosz);
     void* wk = spits_worker_new(argc, argv);
     
     static int64_t jid = 0;
