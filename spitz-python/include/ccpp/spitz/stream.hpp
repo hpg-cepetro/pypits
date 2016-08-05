@@ -43,7 +43,7 @@ namespace spitz {
     private:
         std::vector<uint8_t> pdata;
         
-        static uint64_t htonll(uint64_t x)
+        static uint64_t spitz_htonll(uint64_t x)
         {
             if (htons(1) == 1)
                 return x;
@@ -73,7 +73,7 @@ namespace spitz {
         
         template<typename T> uint64_t hton64(const T& v)
         {
-            return htonll(reinterpret_cast<const uint64_t*>(&v)[0]);
+            return spitz_htonll(reinterpret_cast<const uint64_t*>(&v)[0]);
         }
 
     public:
@@ -132,7 +132,7 @@ namespace spitz {
         const uint8_t *pdata;
         size_t sz, pos;
         
-        static uint64_t ntohll(uint64_t x)
+        static uint64_t spitz_ntohll(uint64_t x)
         {
             if (ntohs(1) == 1)
                 return x;
@@ -157,7 +157,7 @@ namespace spitz {
         
         template<typename T> T ntoh64(const T& v)
         {
-            uint64_t x = ntohll(reinterpret_cast<const uint64_t*>(&v)[0]);
+            uint64_t x = spitz_ntohll(reinterpret_cast<const uint64_t*>(&v)[0]);
             return reinterpret_cast<const T*>(&x)[0];
         }
         
