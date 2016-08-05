@@ -54,6 +54,13 @@ class SimpleEndpoint(Endpoint):
             # Create a TCP socket
             socktype = socket.AF_INET
             sockaddr = (self.address, self.port)
+            # Validate address
+            try:
+                socket.gethostbyname_ex(self.address)
+            except:
+                logging.error('Could not resolve address for host ' + 
+                    self.address)
+                raise
 
         self.socket = socket.socket(socktype, socket.SOCK_STREAM)
         self.socket.settimeout(timeout)
