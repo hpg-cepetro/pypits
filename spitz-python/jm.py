@@ -31,6 +31,7 @@ import sys, threading, os, time, ctypes, logging, struct, threading, traceback
 # Global configuration parameters
 jm_killtms = None # Kill task managers after execution
 jm_log_file = None # Output file for logging
+jm_verbosity = None # Verbosity level for logging
 jm_conn_timeout = None # Socket connect timeout
 jm_recv_timeout = None # Socket receive timeout
 jm_send_timeout = None # Socket send timeout
@@ -41,8 +42,8 @@ jm_recv_backoff = None # Job Manager delay between sending tasks
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global jm_killtms, jm_log_file, jm_conn_timeout, jm_recv_timeout, \
-        jm_send_timeout, jm_send_backoff, jm_recv_backoff
+    global jm_killtms, jm_log_file, jm_verbosity, jm_conn_timeout, \
+        jm_recv_timeout, jm_send_timeout, jm_send_backoff, jm_recv_backoff
 
     def as_int(v):
         if v == None:
@@ -61,6 +62,7 @@ def parse_global_config(argdict):
 
     jm_killtms = as_bool(argdict.get('killtms', True))
     jm_log_file = argdict.get('log', None)
+    jm_verbosity = as_int(argdict.get('verbose', logging.INFO // 10)) * 10
     jm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     jm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     jm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
@@ -72,7 +74,7 @@ def parse_global_config(argdict):
 ###############################################################################
 def setup_log():
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(jm_verbosity)
     root.handlers = []
     if jm_log_file == None:
         ch = logging.StreamHandler(sys.stderr)

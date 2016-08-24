@@ -42,6 +42,7 @@ tm_nw = None # Maximum number of workers
 tm_overfill = 0 # Extra space in the task queue 
 tm_announce = None # Mechanism used to broadcast TM address
 tm_log_file = None # Output file for logging
+tm_verbosity = None # Verbosity level for logging
 tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
 tm_send_timeout = None # Socket send timeout
@@ -50,8 +51,9 @@ tm_send_timeout = None # Socket send timeout
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_overfill, \
-        tm_announce, tm_conn_timeout, tm_recv_timeout, tm_send_timeout
+    global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_verbosity, \
+        tm_overfill, tm_announce, tm_conn_timeout, tm_recv_timeout, \
+        tm_send_timeout
 
     def as_int(v):
         if v == None:
@@ -72,6 +74,7 @@ def parse_global_config(argdict):
     tm_overfill = max(int(argdict.get('overfill', 0)), 0)
     tm_announce = argdict.get('announce', 'none')
     tm_log_file = argdict.get('log', None)
+    tm_verbosity = as_int(argdict.get('verbose', logging.INFO // 10)) * 10
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     tm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
@@ -81,7 +84,7 @@ def parse_global_config(argdict):
 ###############################################################################
 def setup_log():
     root = logging.getLogger()
-    root.setLevel(logging.DEBUG)
+    root.setLevel(tm_verbosity)
     root.handlers = []
     if tm_log_file == None:
         ch = logging.StreamHandler(sys.stderr)
