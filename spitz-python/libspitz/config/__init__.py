@@ -36,3 +36,4 @@ mode_tcp = 'tcp'
 mode_uds = 'uds'
 
 announce_cat_nodes = 'cat'
+announce_file = 'file'

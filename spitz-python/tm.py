@@ -27,7 +27,7 @@ from libspitz import Listener, TaskPool
 from libspitz import messaging, config
 
 import Args
-import sys, os, datetime, logging, multiprocessing, struct, time
+import sys, os, socket, datetime, logging, multiprocessing, struct, time
 
 try:
     import Queue as queue # Python 2
@@ -116,6 +116,37 @@ def announce_cat(addr, filename = None):
     
     try:
         f = open(filename, "a")
+        f.write("node %s\n" % addr)
+        f.close()
+    except:
+        logging.warning('Failed to write to %s!' % (nodefile,))
+        
+###############################################################################
+# Add the node to a directory as a file
+###############################################################################
+def announce_file(addr, dirname = None):
+    # Override the dirname if it is empty
+    if dirname == None:
+        dirname = 'nodes'
+        try:
+            os.makedirs(dirname)
+        except:
+            pass
+
+    # Create a unique filename for the process
+    pid = os.getpid()
+    hostname = socket.gethostname()
+    hostname = [c for c in hostname if c == ' ' or c == '-' or 
+        (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or 
+        (c >= '0' and c <= '9')]
+    hostname = ''.join(hostname)
+    filename = os.path.join('.', dirname, '%s-%s' % (hostname, pid))
+
+    logging.debug('Adding node %s to directory %s...' % 
+        (addr, dirname))
+    
+    try:
+        f = open(filename, "w")
         f.write("node %s\n" % addr)
         f.close()
     except:
@@ -273,8 +304,11 @@ def run(argv, job):
     # Announce the worker
     logging.info('ANNOUNCE %s' % l.GetConnectableAddr())
     
+    addr = l.GetConnectableAddr()
     if tm_announce == config.announce_cat_nodes:
-        announce_cat(l.GetConnectableAddr())
+        announce_cat(addr)
+    elif tm_announce == config.announce_file:
+        announce_file(addr)
 
     # Wait for work^M
     logging.info('Waiting for work...')

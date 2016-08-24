@@ -152,20 +152,20 @@ def parse_node(cmd, proxies):
 ###############################################################################
 # Load the list of task managers from a file
 ###############################################################################
-def load_tm_list(filename = None):
+def load_tm_list_from_file(filename = None):
     # Override the filename if it is empty
     if filename == None:
         nodefile = 'nodes.txt'
         filename = os.path.join('.', nodefile)
 
-    logging.debug('Loading task manager list from %s...' % (nodefile,))
+    logging.debug('Loading task manager list from %s...' % (filename,))
 
     # Read all lines
     try:
         with open(filename, 'rt') as file:
             lines = file.readlines()
     except:
-        logging.warning('Could not load the list of task managers!')
+        logging.warning('Error loading the list of task managers from file!')
         return {}
 
     lproxies = [parse_proxy(x.strip()) for x in lines if x[0:5] == 'proxy']
@@ -181,8 +181,41 @@ def load_tm_list(filename = None):
         if t != None:
             tms[t[0]] = t[1]
 
-    logging.debug('Loaded %d task managers.' % (len(tms),))
+    return tms
 
+###############################################################################
+# Load the list of task managers from a file
+###############################################################################
+def load_tm_list_from_dir(dirname = None):
+    # Override the dirname if it is empty
+    if dirname == None:
+        dirname = 'nodes'
+
+    logging.debug('Loading task manager list from %s...' % (dirname,))
+    
+    tms = {}
+
+    # Read all files
+    try:
+        for f in os.listdir(dirname):
+            f = os.path.join(dirname, f)
+            if not os.path.isfile(f):
+                continue
+            tms.update(load_tm_list_from_file(f))
+    except:
+        logging.warning('Error loading the list of task ' + 
+            'managers from directory!')
+        return {}
+
+    return tms
+
+###############################################################################
+# Load the list of task managers from a file
+###############################################################################
+def load_tm_list():
+    tms = load_tm_list_from_file()
+    tms.update(load_tm_list_from_dir())
+    logging.debug('Loaded %d task managers.' % (len(tms),))
     return tms
 
 ###############################################################################
