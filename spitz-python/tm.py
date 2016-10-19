@@ -156,7 +156,7 @@ def announce_file(addr, dirname = None):
 # Server callback
 ###############################################################################
 def server_callback(conn, addr, port, job, tpool, cqueue):
-    logging.info('Connected to %s:%d.', addr, port)
+    logging.debug('Connected to %s:%d.', addr, port)
 
     try:
         # Read the type of message
