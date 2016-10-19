@@ -308,7 +308,7 @@ static int spitz_debug_runner(int argc, const char** argv,
             spitz_debug_pusher, &result);
         
         if (r1 != 0) {
-            std::cerr << "[SPITZ] Task " << tid << "failed to execute!" 
+            std::cerr << "[SPITZ] Task " << tid << " failed to execute!" 
                 << std::endl;
             goto dump_task_and_exit;
         }
@@ -323,7 +323,7 @@ static int spitz_debug_runner(int argc, const char** argv,
         r2 = spits_committer_commit_pit(co, result.data()+1, result.size()-1);
         
         if (r2 != 0) {
-            std::cerr << "[SPITZ] Task " << tid << "failed to commit!" 
+            std::cerr << "[SPITZ] Task " << tid << " failed to commit!" 
                 << std::endl;
             goto dump_result_and_exit;
         }
@@ -336,7 +336,7 @@ static int spitz_debug_runner(int argc, const char** argv,
     r3 = spits_committer_commit_job(co, spitz_debug_pusher, final_result);
     
     if (r3 != 0) {
-        std::cerr << "[SPITZ] Job " << jid << "failed to commit!" 
+        std::cerr << "[SPITZ] Job " << jid << " failed to commit!" 
             << std::endl;
         exit(1);
     }
@@ -374,7 +374,7 @@ dump_result_and_exit:
             result.size()-1);
         resfile.close();
         std::cerr << "[SPITZ] Result dump generated as " << ss.str() << 
-            " [" << result.size() << " bytes]. " << std::endl;
+            " [" << (result.size()-1) << " bytes]. " << std::endl;
     }
 dump_task_and_exit:
     {
@@ -387,7 +387,7 @@ dump_task_and_exit:
             task.size()-1);
         taskfile.close();
         std::cerr << "[SPITZ] Task dump generated as " << ss.str() << 
-            " [" << task.size()-1 << " bytes]. " << std::endl;
+            " [" << (task.size()-1) << " bytes]. " << std::endl;
     }
     exit(1);
 }
