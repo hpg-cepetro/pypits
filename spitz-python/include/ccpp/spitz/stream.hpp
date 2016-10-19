@@ -41,7 +41,7 @@ namespace spitz {
     class ostream 
     {
     private:
-        std::vector<uint8_t> pdata;
+        std::vector<char> pdata;
         
         static uint64_t spitz_htonll(uint64_t x)
         {
@@ -58,28 +58,31 @@ namespace spitz {
         {
             size_t s = this->pdata.size();
             this->pdata.resize(s + sizeof(T));
-            reinterpret_cast<T*>(this->pdata.data()+s)[0] = v;
+            *reinterpret_cast<T*>(this->pdata.data() + s) = v;
         }
         
         template<typename T> uint16_t hton16(const T& v)
         {
-            return htons(reinterpret_cast<const uint16_t*>(&v)[0]);
+            const char* p = reinterpret_cast<const char*>(&v);
+            return htons(*reinterpret_cast<const uint16_t*>(p));
         }
         
         template<typename T> uint32_t hton32(const T& v)
         {
-            return htonl(reinterpret_cast<const uint32_t*>(&v)[0]);
+            const char* p = reinterpret_cast<const char*>(&v);
+            return htonl(*reinterpret_cast<const uint32_t*>(p));
         }
         
         template<typename T> uint64_t hton64(const T& v)
         {
-            return spitz_htonll(reinterpret_cast<const uint64_t*>(&v)[0]);
+            const char* p = reinterpret_cast<const char*>(&v);
+            return spitz_htonll(*reinterpret_cast<const uint64_t*>(p));
         }
 
     public:
         ostream() : pdata() { }
         
-        void write_bool(const bool& v) { push_back((uint8_t)(v ? 1 : 0)); }
+        void write_bool(const bool& v) { push_back((char)(v ? 1 : 0)); }
         void write_char(const int8_t& v) { push_back(v); }
         void write_byte(const uint8_t& v) { push_back(v); }
         void write_float(const float& v) { push_back(hton32(v)); }
@@ -98,8 +101,8 @@ namespace spitz {
         }
         void write_data(const void* pdata, size_t size)
         {
-            std::copy(reinterpret_cast<const uint8_t*>(pdata), 
-                reinterpret_cast<const uint8_t*>(pdata) + size, 
+            std::copy(reinterpret_cast<const char*>(pdata), 
+                reinterpret_cast<const char*>(pdata) + size, 
                 std::back_inserter(this->pdata));
         }
         
@@ -129,7 +132,7 @@ namespace spitz {
     class istream 
     {
     private:
-        const uint8_t *pdata;
+        const char* pdata;
         size_t sz, pos;
         
         static uint64_t spitz_ntohll(uint64_t x)
@@ -143,28 +146,42 @@ namespace spitz {
             return nhi << 32 | nlo;
         }
         
-        template<typename T> T ntoh16(const T& v)
+        char get1()
         {
-            uint16_t x = ntohs(reinterpret_cast<const uint16_t*>(&v)[0]);
-            return reinterpret_cast<const T*>(&x)[0];
+            ensure_size(1);
+            uint8_t v = *(this->pdata + this->pos);
+            this->pos += 1;
+            return v;
         }
-        
-        template<typename T> T ntoh32(const T& v)
+
+        uint16_t get2()
         {
-            uint32_t x = ntohl(reinterpret_cast<const uint32_t*>(&v)[0]);
-            return reinterpret_cast<const T*>(&x)[0];
+            ensure_size(2);
+            uint16_t v = *((const uint16_t*)(this->pdata + this->pos));
+            this->pos += 2;
+            return ntohs(v);
         }
-        
-        template<typename T> T ntoh64(const T& v)
+
+        uint32_t get4()
         {
-            uint64_t x = spitz_ntohll(reinterpret_cast<const uint64_t*>(&v)[0]);
-            return reinterpret_cast<const T*>(&x)[0];
+            ensure_size(4);
+            uint32_t v = *((const uint32_t*)(this->pdata + this->pos));
+            this->pos += 4;
+            return ntohl(v);
+        }
+
+        uint64_t get8()
+        {
+            ensure_size(8);
+            uint64_t v = *((const uint64_t*)(this->pdata + this->pos));
+            this->pos += 8;
+            return spitz_ntohll(v);
         }
         
         template<typename T> T get_as()
         {
             ensure_size(sizeof(T));
-            T v = reinterpret_cast<const T*>(this->pdata + this->pos)[0];
+            T v = *reinterpret_cast<const T*>(this->pdata + this->pos);
             this->pos += sizeof(T);
             return v;
         }
@@ -177,30 +194,30 @@ namespace spitz {
 
     public:
         istream() : 
-            pdata(reinterpret_cast<const uint8_t*>(0)), 
+            pdata(reinterpret_cast<const char*>(0)), 
             sz(0), 
             pos(0) 
         { 
         }
             
         istream(const void *data, const size_t& size) : 
-            pdata(reinterpret_cast<const uint8_t*>(data)), 
+            pdata(reinterpret_cast<const char*>(data)), 
             sz(size), 
             pos(0) 
         { 
         }
         
-        bool read_bool() { uint8_t v = get_as<uint8_t>(); return v ? true : false; }
-        int8_t read_char() { return get_as<int8_t>(); }
-        uint8_t read_byte() { return get_as<uint8_t>(); }
-        float read_float() { return ntoh32(get_as<float>()); }
-        double read_double() { return ntoh64(get_as<double>()); }
-        int16_t read_short() { return ntoh16(get_as<int16_t>()); }
-        uint16_t read_ushort() { return ntoh16(get_as<uint16_t>()); }
-        int32_t read_int() { return ntoh32(get_as<int32_t>()); }
-        uint32_t read_uint() { return ntoh32(get_as<uint32_t>()); }
-        int64_t read_longlong() { return ntoh64(get_as<int64_t>()); }
-        uint64_t read_ulonglong() { return ntoh64(get_as<uint64_t>()); }
+        bool read_bool() { uint8_t v = get1(); return v ? true : false; }
+        int8_t read_char() { return get1(); }
+        uint8_t read_byte() { char v = get1(); return *((int8_t*)&v); }
+        float read_float() { uint32_t v = get4(); return *((float*)(char*)&v); }
+        double read_double() { uint64_t v = get8(); return *((double*)(char*)&v); }
+        int16_t read_short() { uint16_t v = get2(); return *((int16_t*)(char*)&v); }
+        uint16_t read_ushort() { return get2(); }
+        int32_t read_int() { uint32_t v = get4(); return *((int32_t*)(char*)&v); }
+        uint32_t read_uint() { return get4(); }
+        int64_t read_longlong() { uint64_t v = get8(); return *((int64_t*)(char*)&v); }
+        uint64_t read_ulonglong() { return get8(); }
         std::string read_string()
         { 
             std::stringstream ss;
@@ -214,7 +231,7 @@ namespace spitz {
             ensure_size(size);
             
             std::copy(this->pdata + this->pos, this->pdata + this->pos + size, 
-                reinterpret_cast<uint8_t*>(pdata));
+                reinterpret_cast<char*>(pdata));
             
             this->pos += size;
         }
