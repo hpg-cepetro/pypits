@@ -175,13 +175,14 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
                 # Task pool is not full, start asking for data
                 conn.WriteInt64(messaging.msg_send_more)
                 taskid = conn.ReadInt64(tm_recv_timeout)
+                jobid = conn.ReadInt64(tm_recv_timeout)
                 tasksz = conn.ReadInt64(tm_recv_timeout)
                 task = conn.Read(tasksz, tm_recv_timeout)
                 logging.info('Received task %d from %s:%d.',
                     taskid, addr, port)
 
                 # Try enqueue the received task
-                if not tpool.Put(taskid, task):
+                if not tpool.Put(taskid, jobid, task):
                     # For some reason the pool got full in between
                     # (shouldn't happen)
                     logging.warning('Rejecting task %d because ' +
@@ -199,13 +200,14 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
                 # an Empty exception
                 while True:
                     # Pop the task
-                    taskid, r, res = cqueue.get_nowait()
+                    taskid, jobid, r, res = cqueue.get_nowait()
 
                     logging.info('Sending task %d to committer %s:%d...',
                         taskid, addr, port)
 
                     # Send the task
                     conn.WriteInt64(taskid)
+                    conn.WriteInt64(jobid)
                     conn.WriteInt64(r)
                     if res == None:
                         conn.WriteInt64(0)
@@ -231,7 +233,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
                 # Something went wrong while sending, put
                 # the last task back in the queue
                 if taskid != None:
-                    cqueue.put((taskid, r, res))
+                    cqueue.put((taskid, jobid, r, res))
                     logging.info('Task %d put back in the queue.', taskid)
                 pass
 
@@ -264,8 +266,8 @@ def initializer(cqueue, job, argv):
 ###############################################################################
 # Worker routine
 ###############################################################################
-def worker(state, taskid, task, cqueue, job, argv):
-    logging.info('Processing task %d...', taskid)
+def worker(state, taskid, jobid, task, cqueue, job, argv):
+    logging.info('Processing task %d from job %d...', taskid, jobid)
 
     # Execute the task using the job module
     r, res, ctx = job.spits_worker_run(state, task, taskid)
@@ -281,7 +283,7 @@ def worker(state, taskid, task, cqueue, job, argv):
         return
 
     # Enqueue the result
-    cqueue.put((taskid, r, res[0]))
+    cqueue.put((taskid, jobid, r, res[0]))
 
 ###############################################################################
 # Run routine
@@ -298,7 +300,7 @@ def run(argv, job):
         server_callback, (job, tpool, cqueue))
         
         
-    # Start the server^M
+    # Start the server
     l.Start()
     
     # Announce the worker
@@ -310,7 +312,7 @@ def run(argv, job):
     elif tm_announce == config.announce_file:
         announce_file(addr)
 
-    # Wait for work^M
+    # Wait for work
     logging.info('Waiting for work...')
     l.Join()
 

@@ -277,7 +277,7 @@ def setup_endpoint_for_pulling(e):
 ###############################################################################
 # Push tasks while the task manager is not full
 ###############################################################################
-def push_tasks(job, jm, tm, taskid, task, tasklist):
+def push_tasks(job, jobid, jm, tm, taskid, task, tasklist):
     # Keep pushing until finished or the task manager is full
     sent = []
     while True:
@@ -312,6 +312,7 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
 
             # Push the task to the active task manager
             tm.WriteInt64(taskid)
+            tm.WriteInt64(jobid)
             if task == None:
                 tm.WriteInt64(0)
             else:
@@ -348,6 +349,7 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
         except:
             # Something went wrong with the connection,
             # try with another task manager
+            traceback.print_exc()
             break
 
     return (False, taskid, task, sent)
@@ -355,7 +357,7 @@ def push_tasks(job, jm, tm, taskid, task, tasklist):
 ###############################################################################
 # Read and commit tasks while the task manager is not empty
 ###############################################################################
-def commit_tasks(job, co, tm, tasklist, completed):
+def commit_tasks(job, jobid, co, tm, tasklist, completed):
     # Keep pulling until finished or the task manager is full
     while True:
         try:
@@ -365,6 +367,9 @@ def commit_tasks(job, co, tm, tasklist, completed):
             if taskid == messaging.msg_read_empty:
                 # No more task to receive
                 return
+
+            # Read the job id
+            taskjobid = tm.ReadInt64(jm_recv_timeout)
 
             # Read the rest of the task
             r = tm.ReadInt64(jm_recv_timeout)
@@ -383,6 +388,16 @@ def commit_tasks(job, co, tm, tasklist, completed):
             elif r != 0:
                 logging.error('The task %d was not successfully executed, ' +
                     'worker returned %d!', taskid, r)
+
+            if taskjobid < jobid:
+                logging.debug('The task %d is from the previous job %d ' + 
+                    'and will be ignored!', taskid, taskjobid)
+                continue
+
+            if taskjobid > jobid:
+                logging.error('Received task %d from a future job %d!', 
+                    taskid, taskjobid)
+                continue
 
             # Validated completed task
 
@@ -425,7 +440,7 @@ def commit_tasks(job, co, tm, tasklist, completed):
 ###############################################################################
 # Job Manager routine
 ###############################################################################
-def jobmanager(argv, job, jm, tasklist, completed):
+def jobmanager(argv, job, jobid, jm, tasklist, completed):
     logging.info('Job manager running...')
 
     # Load the list of nodes to connect to
@@ -464,7 +479,7 @@ def jobmanager(argv, job, jm, tasklist, completed):
             logging.debug('Pushing tasks to %s:%d...', tm.address, tm.port)
 
             # Task pushing loop
-            finished, taskid, task, sent = push_tasks(job, jm, tm,
+            finished, taskid, task, sent = push_tasks(job, jobid, jm, tm,
                 taskid, task, tasklist)
 
             # Add the sent tasks to the sumission list
@@ -507,7 +522,7 @@ def jobmanager(argv, job, jm, tasklist, completed):
 ###############################################################################
 # Committer routine
 ###############################################################################
-def committer(argv, job, co, tasklist, completed):
+def committer(argv, job, jobid, co, tasklist, completed):
     logging.info('Committer running...')
 
     # Load the list of nodes to connect to
@@ -538,7 +553,7 @@ def committer(argv, job, co, tasklist, completed):
             logging.debug('Pulling tasks from %s:%d...', tm.address, tm.port)
 
             # Task pulling loop
-            commit_tasks(job, co, tm, tasklist, completed)
+            commit_tasks(job, jobid, co, tm, tasklist, completed)
 
             # Close the connection with the task manager
             tm.Close()
@@ -580,7 +595,7 @@ def killtms():
 ###############################################################################
 # Run routine
 ###############################################################################
-def run(argv, jobinfo, job):
+def run(argv, jobinfo, job, jobid):
     # List of pending tasks
     tasklist = {}
 
@@ -588,23 +603,23 @@ def run(argv, jobinfo, job):
     completed = {0: 0}
 
     # Start the job manager
-    logging.info('Starting job manager...')
+    logging.info('Starting job manager jor job %d...', jobid)
 
     # Create the job manager from the job module
     jm = job.spits_job_manager_new(argv, jobinfo)
 
     jmthread = threading.Thread(target=jobmanager,
-        args=(argv, job, jm, tasklist, completed))
+        args=(argv, job, jobid, jm, tasklist, completed))
     jmthread.start()
 
     # Start the committer
-    logging.info('Starting committer...')
+    logging.info('Starting committer for job %d...', jobid)
 
     # Create the job manager from the job module
     co = job.spits_committer_new(argv, jobinfo)
 
     cothread = threading.Thread(target=committer,
-        args=(argv, job, co, tasklist, completed))
+        args=(argv, job, jobid, co, tasklist, completed))
     cothread.start()
 
     # Wait for both threads
@@ -632,7 +647,7 @@ def run(argv, jobinfo, job):
         logging.error('Context verification failed for job!')
         return messaging.res_module_ctxer, None
 
-    logging.debug('Job finished successfully.')
+    logging.debug('Job %d finished successfully.', jobid)
     return r, res[0]
 
 ###############################################################################
@@ -658,9 +673,13 @@ def main(argv):
     # Remove JM arguments when passing to the module
     margv = args.margs
 
+    # Keep a job identifier
+    jobid = [0]
+
     # Wrapper to include job module
     def run_wrapper(argv, jobinfo):
-        return run(argv, jobinfo, job)
+        jobid[0] = jobid[0] + 1
+        return run(argv, jobinfo, job, jobid[0])
 
     # Run the module
     logging.info('Running module')

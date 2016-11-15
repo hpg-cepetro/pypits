@@ -55,16 +55,16 @@ class TaskPool(object):
         while True:
             # Pick a task from the queue and execute it
             # TODO better tm kill
-            taskid, task = self.tasks.get()
+            taskid, jobid, task = self.tasks.get()
             try:
-                self.worker(state, taskid, task, *self.user_args)
+                self.worker(state, taskid, jobid, task, *self.user_args)
             except:
                 logging.error('The worker crashed while processing ' +
                     'the task %d', taskid)
 
-    def Put(self, taskid, task):
+    def Put(self, taskid, jobid, task):
         try:
-            self.tasks.put_nowait((taskid, task))
+            self.tasks.put_nowait((taskid, jobid, task))
         except queue.Full:
             return False
         return True
