@@ -243,7 +243,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
             logging.warning('Unknown message received \'%d\'!', mtype)
 
     except messaging.SocketClosed:
-        logging.info('Connection to %s:%d closed from the other side.',
+        logging.debug('Connection to %s:%d closed from the other side.',
             addr, port)
 
     except TimeoutError:
@@ -254,7 +254,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue):
             addr, port)
 
     conn.Close()
-    logging.info('Connection to %s:%d closed.', addr, port)
+    logging.debug('Connection to %s:%d closed.', addr, port)
 
 ###############################################################################
 # Initializer routine for the worker
