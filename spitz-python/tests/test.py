@@ -9,9 +9,10 @@ import Args
 
 class TestArgs(unittest.TestCase):
     def test_args(self):
-        args = Args.Args(['--timeout=10'])
+        args = Args.Args(['--timeout=10', 'module', 'arg1', 'arg2'])
         self.assertIn('timeout', args.args)
         self.assertEqual(args.args['timeout'], '10')
+        self.assertSequenceEqual(['module', 'arg1', 'arg2'], args.margs)
 
 class TestTM(unittest.TestCase):
     def test_parse_global_config(self):

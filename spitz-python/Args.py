@@ -44,4 +44,4 @@ class Args(object):
             # Save the dictionary
             self.args[a] = v
 
-        self.margs = args[i+1:]
+        self.margs = args[i:]
