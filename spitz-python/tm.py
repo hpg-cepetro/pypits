@@ -327,7 +327,7 @@ def main(argv):
         abort('USAGE: tm [args] module [module args]')
 
     # Parse the arguments
-    args = Args.Args(argv)
+    args = Args.Args(argv[1:])
     parse_global_config(args.args)
     
     # Setup logging

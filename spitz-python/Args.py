@@ -29,7 +29,7 @@ class Args(object):
     def __init__(self, args):
         self.args = {}
 
-        for i, arg in enumerate(args[1:]):
+        for i, arg in enumerate(args):
             # Stop the first non -- arg
             if arg.find('--') != 0:
                 break;
