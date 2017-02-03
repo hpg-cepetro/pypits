@@ -359,6 +359,7 @@ def push_tasks(job, jobid, jm, tm, taskid, task, tasklist):
 ###############################################################################
 def commit_tasks(job, jobid, co, tm, tasklist, completed):
     # Keep pulling until finished or the task manager is full
+    n_errors = 0
     while True:
         try:
             # Pull the task from the active task manager
@@ -382,12 +383,14 @@ def commit_tasks(job, jobid, co, tm, tasklist, completed):
             # Warning, exceptions after this line may cause task loss
             # if not handled properly!!
 
-            if r == messaging.res_module_error:
-                logging.error('The remote worker crashed while ' +
-                    'executing task %d!', r)
-            elif r != 0:
-                logging.error('The task %d was not successfully executed, ' +
-                    'worker returned %d!', taskid, r)
+            if r != 0:
+                n_errors += 1
+                if r == messaging.res_module_error:
+                    logging.error('The remote worker crashed while ' +
+                        'executing task %d!', r)
+                else:
+                    logging.error('The task %d was not successfully executed, ' +
+                        'worker returned %d!', taskid, r)
 
             if taskjobid < jobid:
                 logging.debug('The task %d is from the previous job %d ' + 
@@ -436,6 +439,8 @@ def commit_tasks(job, jobid, co, tm, tasklist, completed):
             # Something went wrong with the connection,
             # try with another task manager
             break
+    if n_errors > 0:
+        logging.warn('There were %d failed tasks' % (n_errors, ))
 
 ###############################################################################
 # Job Manager routine
