@@ -46,6 +46,7 @@ tm_verbosity = None # Verbosity level for logging
 tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
 tm_send_timeout = None # Socket send timeout
+tm_timeout = None
 
 ###############################################################################
 # Parse global configuration
@@ -53,7 +54,7 @@ tm_send_timeout = None # Socket send timeout
 def parse_global_config(argdict):
     global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_verbosity, \
         tm_overfill, tm_announce, tm_conn_timeout, tm_recv_timeout, \
-        tm_send_timeout
+        tm_send_timeout, tm_timeout
 
     def as_int(v):
         if v == None:
@@ -78,6 +79,7 @@ def parse_global_config(argdict):
     tm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     tm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
+    tm_timeout = as_float(argdict.get('timeout', config.timeout))
 
 ###############################################################################
 # Configure the log output format

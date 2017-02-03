@@ -25,6 +25,7 @@
 send_timeout = None
 recv_timeout = None
 conn_timeout = None
+timeout = None # Exit TM after `timeout' seconds if idle
 
 send_backoff = 0.25
 recv_backoff = 2
