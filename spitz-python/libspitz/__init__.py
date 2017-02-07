@@ -30,6 +30,7 @@ from .ClientEndpoint import ClientEndpoint
 
 from .Listener import Listener
 from .TaskPool import TaskPool
+from .Timeout import timeout
 
 def main():
     pass
