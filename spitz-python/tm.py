@@ -25,6 +25,7 @@
 from libspitz import JobBinary, SimpleEndpoint
 from libspitz import Listener, TaskPool
 from libspitz import messaging, config
+from libspitz import timeout as Timeout
 
 import Args
 import sys, os, socket, datetime, logging, multiprocessing, struct, time
@@ -157,12 +158,13 @@ def announce_file(addr, dirname = None):
 ###############################################################################
 # Server callback
 ###############################################################################
-def server_callback(conn, addr, port, job, tpool, cqueue):
+def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
     logging.debug('Connected to %s:%d.', addr, port)
 
     try:
         # Read the type of message
         mtype = conn.ReadInt64(tm_recv_timeout)
+        timeout.reset()
 
         # Termination signal
         if mtype == messaging.msg_terminate:
@@ -290,7 +292,7 @@ def worker(state, taskid, jobid, task, cqueue, job, argv):
 ###############################################################################
 # Run routine
 ###############################################################################
-def run(argv, job):
+def run(argv, job, timeout):
     # Create a work pool and a commit queue
     cqueue = queue.Queue()
     tpool = TaskPool(tm_nw, tm_overfill, initializer, 
@@ -299,7 +301,7 @@ def run(argv, job):
     # Create the server
     logging.info('Starting network listener...')
     l = Listener(tm_mode, tm_addr, tm_port, 
-        server_callback, (job, tpool, cqueue))
+        server_callback, (job, tpool, cqueue, timeout))
         
         
     # Start the server
@@ -329,6 +331,8 @@ def main(argv):
     # Parse the arguments
     args = Args.Args(argv[1:])
     parse_global_config(args.args)
+    timeout = Timeout(tm_timeout, abort, args=['Task Manager timed out'])
+    timeout.reset()
     
     # Setup logging
     setup_log()
@@ -342,7 +346,7 @@ def main(argv):
     margv = args.margs
 
     # Start the tm
-    run(margv, job)
+    run(margv, job, timeout)
 
     # Finalize
     logging.debug('Bye!')
