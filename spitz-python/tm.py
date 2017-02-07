@@ -320,6 +320,10 @@ def run(argv, job, timeout):
     logging.info('Waiting for work...')
     l.Join()
 
+def timeout_exit():
+    logging.error('Task Manager exited due to timeout')
+    os._exit(1)
+
 ###############################################################################
 # Main routine
 ###############################################################################
@@ -331,7 +335,7 @@ def main(argv):
     # Parse the arguments
     args = Args.Args(argv[1:])
     parse_global_config(args.args)
-    timeout = Timeout(tm_timeout, abort, args=['Task Manager timed out'])
+    timeout = Timeout(tm_timeout, timeout_exit)
     timeout.reset()
     
     # Setup logging
