@@ -25,7 +25,8 @@
 from .SocketClosed import SocketClosed
 from .MessagingError import MessagingError
 
-import select
+import select, socket
+
 
 # Messaging codes
 
@@ -55,7 +56,7 @@ def recv(conn, size, timeout):
     while left > 0:
         ready = select.select([conn], [], [], timeout)
         if not ready[0]:
-            raise TimeoutError()
+            raise socket.timeout()
         d = conn.recv(left)
         if len(d) == 0:
             raise SocketClosed()

@@ -255,7 +255,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
         logging.debug('Connection to %s:%d closed from the other side.',
             addr, port)
 
-    except TimeoutError:
+    except socket.timeout:
         logging.warning('Connection to %s:%d timed out!', addr, port)
 
     except:
