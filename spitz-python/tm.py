@@ -174,8 +174,11 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
                 addr, port)
             os._exit(0)
 
+        # Job manager is sending heartbeats
+        if mtype == messaging.msg_send_heart:
+            pass
         # Job manager is trying to send tasks to the task manager
-        if mtype == messaging.msg_send_task:
+        elif mtype == messaging.msg_send_task:
             # Two phase pull: test-try-pull
             while not tpool.Full():
                 # Task pool is not full, start asking for data

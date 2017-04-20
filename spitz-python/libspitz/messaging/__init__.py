@@ -29,10 +29,11 @@ import select
 
 # Messaging codes
 
-msg_send_task = 0x0201
-msg_send_more = 0x0202
-msg_send_full = 0x0203
-msg_send_rjct = 0x0204
+msg_send_heart = 0x0200
+msg_send_task  = 0x0201
+msg_send_more  = 0x0202
+msg_send_full  = 0x0203
+msg_send_rjct  = 0x0204
 
 msg_read_result = 0x0101
 msg_read_empty = 0x0000

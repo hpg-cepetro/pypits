@@ -22,6 +22,7 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
 # IN THE SOFTWARE.
 
+heart_timeout = None
 send_timeout = None
 recv_timeout = None
 conn_timeout = None

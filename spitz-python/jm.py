@@ -33,19 +33,22 @@ import sys, threading, os, time, ctypes, logging, struct, threading, traceback
 jm_killtms = None # Kill task managers after execution
 jm_log_file = None # Output file for logging
 jm_verbosity = None # Verbosity level for logging
+jm_heart_timeout = None # Timeout for heartbeat response
 jm_conn_timeout = None # Socket connect timeout
 jm_recv_timeout = None # Socket receive timeout
 jm_send_timeout = None # Socket send timeout
 jm_send_backoff = None # Job Manager delay between sending tasks
 jm_recv_backoff = None # Job Manager delay between sending tasks
 jm_memstat = None # 1 to display memory statistics
+heartbeat_interval = None
 
 ###############################################################################
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
-    global jm_killtms, jm_log_file, jm_verbosity, jm_conn_timeout, \
-        jm_recv_timeout, jm_send_timeout, jm_send_backoff, jm_recv_backoff, jm_memstat
+    global jm_killtms, jm_log_file, jm_verbosity, jm_heart_timeout, \
+        jm_conn_timeout, jm_recv_timeout, jm_send_timeout, jm_send_backoff, \
+        jm_recv_backoff, jm_memstat, heartbeat_interval
 
     def as_int(v):
         if v == None:
@@ -65,12 +68,14 @@ def parse_global_config(argdict):
     jm_killtms = as_bool(argdict.get('killtms', True))
     jm_log_file = argdict.get('log', None)
     jm_verbosity = as_int(argdict.get('verbose', logging.INFO // 10)) * 10
+    jm_heart_timeout = as_float(argdict.get('htimeout', config.heart_timeout))
     jm_conn_timeout = as_float(argdict.get('ctimeout', config.conn_timeout))
     jm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     jm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
     jm_recv_backoff = as_float(argdict.get('rbackoff', config.recv_backoff))
     jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
     jm_memstat = as_int(argdict.get('memstat', 0))
+    heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
 
 ###############################################################################
 # Configure the log output format
@@ -445,6 +450,64 @@ def commit_tasks(job, jobid, co, tm, tasklist, completed):
     if n_errors > 0:
         logging.warn('There were %d failed tasks' % (n_errors, ))
 
+
+def infinite_tmlist_generator():
+    ''' Iterates over TMs returned by the load_tm_list() method indefinitely.
+    The result of a single iteration is a tuple containing (Finished, Name,
+    TM), where Finished == True indicates if the currently listed  TMs
+    finished. The next iteration will read the TMs again, setting Finished to
+    False.
+
+    Conditions:
+        Finished == True <=> (Name, TM) == (None, None)
+        Finished == False <=> (Name, TM) != (None, None)
+
+    Example:
+        for isEnd, name, tm in infinite_tmlist_generator():
+            if not isEnd:
+                do something with the task manager (name, tm)
+            else:
+                all tms where processed, you can do post processing here. The
+                next iteration will set isEnd to True and start over again'''
+    tmlist = load_tm_list()
+    while True:
+        try:
+            newtmlist = load_tm_list()
+            if len(newtmlist) > 0:
+                tmlist = newtmlist
+            elif len(tmlist) > 0:
+                logging.warning('New list of task managers is ' +
+                    'empty and will not be updated!')
+        except:
+            if len(tmlist) > 0:
+                logging.warning('New list of task managers is ' +
+                    'empty and will not be updated!')
+        for name, tm in tmlist.items():
+            yield False, name, tm
+        yield True, None, None
+
+
+def heartbeat():
+    global heartbeat_interval
+    t_last = time.clock()
+    for isEnd, name, tm in infinite_tmlist_generator():
+        if isEnd:
+            t_curr = time.clock()
+            elapsed = t_curr - t_last
+            t_last = t_curr
+            sleep_for = max(heartbeat_interval - elapsed, 0)
+            time.sleep(sleep_for)
+        else:
+            try:
+                tm.Open(jm_heart_timeout)
+                tm.WriteInt64(messaging.msg_send_heart)
+                tm.ReadInt64(jm_heart_timeout)
+            except:
+                pass
+            finally:
+                tm.Close()
+
+
 ###############################################################################
 # Job Manager routine
 ###############################################################################
@@ -676,14 +739,16 @@ def main(argv):
     args = Args.Args(argv[1:])
     parse_global_config(args.args)
 
-    if jm_memstat == 1:
-        memstat.enable()
-    
-    memstat.stats()
     # Setup logging
     setup_log()
     logging.debug('Hello!')
 
+    threading.Thread(target=heartbeat).start()
+
+    if jm_memstat == 1:
+        memstat.enable()
+    
+    memstat.stats()
     # Load the module
     module = args.margs[0]
     job = JobBinary(module)
