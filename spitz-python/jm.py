@@ -24,6 +24,7 @@
 
 from libspitz import JobBinary, SimpleEndpoint
 from libspitz import messaging, config
+from libspitz import memstat
 
 import Args
 import sys, threading, os, time, ctypes, logging, struct, threading, traceback
@@ -37,13 +38,14 @@ jm_recv_timeout = None # Socket receive timeout
 jm_send_timeout = None # Socket send timeout
 jm_send_backoff = None # Job Manager delay between sending tasks
 jm_recv_backoff = None # Job Manager delay between sending tasks
+jm_memstat = None # 1 to display memory statistics
 
 ###############################################################################
 # Parse global configuration
 ###############################################################################
 def parse_global_config(argdict):
     global jm_killtms, jm_log_file, jm_verbosity, jm_conn_timeout, \
-        jm_recv_timeout, jm_send_timeout, jm_send_backoff, jm_recv_backoff
+        jm_recv_timeout, jm_send_timeout, jm_send_backoff, jm_recv_backoff, jm_memstat
 
     def as_int(v):
         if v == None:
@@ -68,6 +70,7 @@ def parse_global_config(argdict):
     jm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
     jm_recv_backoff = as_float(argdict.get('rbackoff', config.recv_backoff))
     jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
+    jm_memstat = as_int(argdict.get('memstat', 0))
 
 ###############################################################################
 # Configure the log output format
@@ -447,6 +450,7 @@ def commit_tasks(job, jobid, co, tm, tasklist, completed):
 ###############################################################################
 def jobmanager(argv, job, jobid, jm, tasklist, completed):
     logging.info('Job manager running...')
+    memstat.stats()
 
     # Load the list of nodes to connect to
     tmlist = load_tm_list()
@@ -484,6 +488,7 @@ def jobmanager(argv, job, jobid, jm, tasklist, completed):
             logging.debug('Pushing tasks to %s:%d...', tm.address, tm.port)
 
             # Task pushing loop
+            memstat.stats()
             finished, taskid, task, sent = push_tasks(job, jobid, jm, tm,
                 taskid, task, tasklist)
 
@@ -529,6 +534,7 @@ def jobmanager(argv, job, jobid, jm, tasklist, completed):
 ###############################################################################
 def committer(argv, job, jobid, co, tasklist, completed):
     logging.info('Committer running...')
+    memstat.stats()
 
     # Load the list of nodes to connect to
     tmlist = load_tm_list()
@@ -559,6 +565,7 @@ def committer(argv, job, jobid, co, tasklist, completed):
 
             # Task pulling loop
             commit_tasks(job, jobid, co, tm, tasklist, completed)
+            memstat.stats()
 
             # Close the connection with the task manager
             tm.Close()
@@ -602,6 +609,7 @@ def killtms():
 ###############################################################################
 def run(argv, jobinfo, job, jobid):
     # List of pending tasks
+    memstat.stats()
     tasklist = {}
 
     # Keep an extra list of completed tasks
@@ -643,6 +651,7 @@ def run(argv, jobinfo, job, jobid):
     # Finalize the committer
     logging.debug('Finalizing Committer...')
     job.spits_committer_finalize(co)
+    memstat.stats()
 
     if res == None:
         logging.error('Job did not push any result!')
@@ -666,7 +675,11 @@ def main(argv):
     # Parse the arguments
     args = Args.Args(argv[1:])
     parse_global_config(args.args)
+
+    if jm_memstat == 1:
+        memstat.enable()
     
+    memstat.stats()
     # Setup logging
     setup_log()
     logging.debug('Hello!')
@@ -688,13 +701,16 @@ def main(argv):
 
     # Run the module
     logging.info('Running module')
+    memstat.stats()
     r = job.spits_main(margv, run_wrapper)
+    memstat.stats()
 
     # Kill the workers
     if jm_killtms:
         killtms()
 
     # Finalize
+    memstat.stats()
     logging.debug('Bye!')
     #exit(r)
 
