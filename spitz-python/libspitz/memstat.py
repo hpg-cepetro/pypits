@@ -4,6 +4,7 @@ import traceback
 
 _memstat_enabled = False
 _can_enable = True
+_sc_page_size = 0
 
 try:
     import resource
@@ -11,10 +12,12 @@ try:
     import base64
     import os
     import inspect
+    _sc_page_size = os.sysconf('SC_PAGE_SIZE')
 except:
     logging.warning('could not import the modules necessary to memstat, disabling')
     _memstat_enabled = False
     _can_enable = False
+
 
 def disable():
     global _memstat_enabled
@@ -31,6 +34,17 @@ def isenabled():
     global _memstat_enabled
     return _memstat_enabled
 
+def my_getrss():
+    """ See http://stackoverflow.com/questions/669438/how-to-get-memory-usage-at-run-time-in-c """
+    fp = None
+    try:
+        fp = open("/proc/self/stat")
+        parts = fp.read().split()
+        return int(parts[23]) * _sc_page_size
+    finally:
+        if fp:
+            fp.close()
+
 def stats():
     global _memstat_enabled, _can_enable
     if not _memstat_enabled:
@@ -43,6 +57,8 @@ def stats():
         s0, s1, s2 = gc.get_count()
         usage = resource.getrusage(resource.RUSAGE_SELF)
         kb = usage.ru_maxrss
+        if kb == 0:
+            kb = my_getrss()
         _frame = inspect.currentframe()
         frame = _frame.f_back
         fname = frame.f_code.co_filename
