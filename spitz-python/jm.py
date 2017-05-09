@@ -471,7 +471,7 @@ def jobmanager(argv, job, jobid, jm, tasklist, completed):
             newtmlist = load_tm_list()
             if len(newtmlist) > 0:
                 tmlist = newtmlist
-            else:
+            elif len(tmlist) > 0:
                 logging.warning('New list of task managers is ' +
                     'empty and will not be updated!')
         except:
@@ -547,7 +547,7 @@ def committer(argv, job, jobid, co, tasklist, completed):
             newtmlist = load_tm_list()
             if len(newtmlist) > 0:
                 tmlist = newtmlist
-            else:
+            elif len(tmlist) > 0:
                 logging.warning('New list of task managers is ' +
                     'empty and will not be updated!')
         except:
