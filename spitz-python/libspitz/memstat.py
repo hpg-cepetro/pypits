@@ -40,7 +40,7 @@ def my_getrss():
     try:
         fp = open("/proc/self/stat")
         parts = fp.read().split()
-        return int(parts[23]) * _sc_page_size
+        return int(parts[23]) * _sc_page_size / 1024
     finally:
         if fp:
             fp.close()
