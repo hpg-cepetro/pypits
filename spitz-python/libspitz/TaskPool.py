@@ -41,6 +41,7 @@ class TaskPool(object):
         self.threads = [threading.Thread(target=self.runner) for
             i in range(max_threads)]
 
+    def start(self):
         for t in self.threads:
             t.start()
 
@@ -71,3 +72,6 @@ class TaskPool(object):
 
     def Full(self):
         return self.tasks.full()
+
+    def Empty(self):
+        return self.tasks.empty()

@@ -1,3 +1,6 @@
+import logging
+import traceback
+import inspect
 from threading import Timer
 from threading import Lock
 
@@ -14,7 +17,7 @@ class TimeoutNoop(object):
         pass
 
 class Timeout(object):
-    def __init__(self, timeout, callback, *args, **kwargs):
+    def __init__(self, timeout, callback, args=[], kwargs={}):
         self.timeout = timeout
         self.callback = callback
         self._args = args
@@ -22,10 +25,18 @@ class Timeout(object):
         self._timer = None
         self._lock = Lock()
 
+    def _callback(self):
+        if self.callback(*self._args, **self._kwargs):
+            self.reset()
+
     def reset(self):
+        _frame = inspect.currentframe()
+        frame = _frame.f_back
+        fname = frame.f_code.co_filename
+        fnum = frame.f_lineno
         self._lock.acquire()
         self._cancel()
-        self._timer = Timer(self.timeout, self.callback, *self._args, **self._kwargs)
+        self._timer = Timer(self.timeout, self._callback)
         self._timer.start()
         self._lock.release()
 

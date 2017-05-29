@@ -30,6 +30,8 @@ from libspitz import timeout as Timeout
 import Args
 import sys, os, socket, datetime, logging, multiprocessing, struct, time
 
+from threading import Lock
+
 try:
     import Queue as queue # Python 2
 except:
@@ -263,14 +265,16 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
 ###############################################################################
 # Initializer routine for the worker
 ###############################################################################
-def initializer(cqueue, job, argv):
+def initializer(cqueue, job, argv, active_workers, timeout):
     logging.info('Initializing worker...')
     return job.spits_worker_new(argv)
 
 ###############################################################################
 # Worker routine
 ###############################################################################
-def worker(state, taskid, jobid, task, cqueue, job, argv):
+def worker(state, taskid, jobid, task, cqueue, job, argv, active_workers, timeout):
+    timeout.reset()
+    active_workers.inc()
     logging.info('Processing task %d from job %d...', taskid, jobid)
 
     # Execute the task using the job module
@@ -288,73 +292,80 @@ def worker(state, taskid, jobid, task, cqueue, job, argv):
 
     # Enqueue the result
     cqueue.put((taskid, jobid, r, res[0]))
+    active_workers.dec()
 
 ###############################################################################
 # Run routine
 ###############################################################################
-def run(argv, job, timeout):
-    # Create a work pool and a commit queue
-    cqueue = queue.Queue()
-    tpool = TaskPool(tm_nw, tm_overfill, initializer, 
-        worker, (cqueue, job, argv))
 
-    # Create the server
-    logging.info('Starting network listener...')
-    l = Listener(tm_mode, tm_addr, tm_port, 
-        server_callback, (job, tpool, cqueue, timeout))
-        
-        
-    # Start the server
-    l.Start()
-    
-    # Announce the worker
-    logging.info('ANNOUNCE %s' % l.GetConnectableAddr())
-    
-    addr = l.GetConnectableAddr()
-    if tm_announce == config.announce_cat_nodes:
-        announce_cat(addr)
-    elif tm_announce == config.announce_file:
-        announce_file(addr)
 
-    # Wait for work
-    logging.info('Waiting for work...')
-    l.Join()
+class AtomicInc(object):
+    def __init__(self, value=0):
+        self.value = value
+        self.lock = Lock()
 
-def timeout_exit():
-    logging.error('Task Manager exited due to timeout')
-    os._exit(1)
+    def inc(self):
+        self.lock.acquire()
+        self.value += 1
+        self.lock.release()
+
+    def dec(self):
+        self.lock.acquire()
+        self.value -= 1
+        self.lock.release()
+
+    def get(self):
+        return self.value
+
+
+class App(object):
+    def __init__(self, args):
+        self.args = args
+        self.timeout = Timeout(tm_timeout, self.timeout_exit)
+        self.job = JobBinary(args.margs[0])
+        self.cqueue = queue.Queue()
+        self.active_workers = AtomicInc()
+        data = (self.cqueue, self.job, self.args.margs, self.active_workers, self.timeout)
+        self.tpool = TaskPool(tm_nw, tm_overfill, initializer, worker, data)
+        self.server = Listener(tm_mode, tm_addr, tm_port, server_callback,
+                               (self.job, self.tpool, self.cqueue, self.timeout))
+
+    def run(self):
+        argv = self.args.margs
+        self.timeout.reset()
+        logging.info('Starting workers...')
+        self.tpool.start()
+        logging.info('Starting network listener...')
+        self.server.Start()
+        addr = self.server.GetConnectableAddr()
+        logging.info('ANNOUNCE %s' % addr)
+        if tm_announce == config.announce_cat_nodes:
+            announce_cat(addr)
+        elif tm_announce == config.announce_file:
+            announce_file(addr)
+        logging.info('Waiting for work...')
+        self.server.Join()
+
+    def timeout_exit(self):
+        if self.tpool.Empty() and self.active_workers.get() <= 0:
+            logging.error('Task Manager exited due to timeout')
+            os._exit(1)
+            return False
+        else:
+            return True
 
 ###############################################################################
 # Main routine
 ###############################################################################
 def main(argv):
-    # Print usage
     if len(argv) <= 1:
         abort('USAGE: tm [args] module [module args]')
-
-    # Parse the arguments
     args = Args.Args(argv[1:])
     parse_global_config(args.args)
-    timeout = Timeout(tm_timeout, timeout_exit)
-    timeout.reset()
-    
-    # Setup logging
     setup_log()
     logging.debug('Hello!')
-
-    # Load the module
-    module = args.margs[0]
-    job = JobBinary(module)
-
-    # Remove JM arguments when passing to the module
-    margv = args.margs
-
-    # Start the tm
-    run(margv, job, timeout)
-
-    # Finalize
+    App(args).run()
     logging.debug('Bye!')
-    #exit(r)
 
 ###############################################################################
 # Entry point
