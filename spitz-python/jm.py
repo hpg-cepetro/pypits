@@ -743,12 +743,14 @@ def main(argv):
     setup_log()
     logging.debug('Hello!')
 
+    # Start a heartbeat thread
     threading.Thread(target=heartbeat).start()
 
+    # Enable memory debugging
     if jm_memstat == 1:
         memstat.enable()
-    
     memstat.stats()
+
     # Load the module
     module = args.margs[0]
     job = JobBinary(module)
@@ -774,8 +776,10 @@ def main(argv):
     if jm_killtms:
         killtms()
 
-    # Finalize
+    # Print final memory report
     memstat.stats()
+
+    # Finalize
     logging.debug('Bye!')
     #exit(r)
 
