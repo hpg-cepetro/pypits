@@ -42,5 +42,20 @@ class Endpoint(object):
     def WriteInt64(self, value):
         self.Write(struct.pack('!q', value))
 
+    def ReadString(self, timeout):
+        sz = struct.unpack('!I', self.Read(4, timeout))[0]
+        if sz > 0:
+            data = struct.unpack(str(sz)+'s', self.Read(sz, timeout))[0]
+            return data.decode('utf8')
+        else:
+            return ''
+
+    def WriteString(self, value):
+        s = value.encode('utf8')
+        l = len(s)
+        self.Write(struct.pack('!I', l))
+        if len(s) > 0:
+            self.Write(struct.pack(str(l)+'s', s))
+
     def Close(self):
         raise NotImplementedError('Please specialize this class to make a custom endpoint')
