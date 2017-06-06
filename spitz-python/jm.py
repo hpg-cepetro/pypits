@@ -40,7 +40,7 @@ jm_send_timeout = None # Socket send timeout
 jm_send_backoff = None # Job Manager delay between sending tasks
 jm_recv_backoff = None # Job Manager delay between sending tasks
 jm_memstat = None # 1 to display memory statistics
-heartbeat_interval = None
+jm_heartbeat_interval = None
 
 ###############################################################################
 # Parse global configuration
@@ -48,7 +48,7 @@ heartbeat_interval = None
 def parse_global_config(argdict):
     global jm_killtms, jm_log_file, jm_verbosity, jm_heart_timeout, \
         jm_conn_timeout, jm_recv_timeout, jm_send_timeout, jm_send_backoff, \
-        jm_recv_backoff, jm_memstat, heartbeat_interval
+        jm_recv_backoff, jm_memstat, jm_heartbeat_interval
 
     def as_int(v):
         if v == None:
@@ -75,7 +75,7 @@ def parse_global_config(argdict):
     jm_recv_backoff = as_float(argdict.get('rbackoff', config.recv_backoff))
     jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
     jm_memstat = as_int(argdict.get('memstat', 0))
-    heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
+    jm_heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
 
 ###############################################################################
 # Configure the log output format
@@ -488,14 +488,14 @@ def infinite_tmlist_generator():
 
 
 def heartbeat():
-    global heartbeat_interval
+    global jm_heartbeat_interval
     t_last = time.clock()
     for isEnd, name, tm in infinite_tmlist_generator():
         if isEnd:
             t_curr = time.clock()
             elapsed = t_curr - t_last
             t_last = t_curr
-            sleep_for = max(heartbeat_interval - elapsed, 0)
+            sleep_for = max(jm_heartbeat_interval - elapsed, 0)
             time.sleep(sleep_for)
         else:
             try:
