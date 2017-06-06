@@ -487,10 +487,15 @@ def infinite_tmlist_generator():
         yield True, None, None
 
 
-def heartbeat():
+###############################################################################
+# Heartbeat routine
+###############################################################################
+def heartbeat(finished):
     global jm_heartbeat_interval
     t_last = time.clock()
     for isEnd, name, tm in infinite_tmlist_generator():
+        if finished[0]:
+            return
         if isEnd:
             t_curr = time.clock()
             elapsed = t_curr - t_last
@@ -743,9 +748,6 @@ def main(argv):
     setup_log()
     logging.debug('Hello!')
 
-    # Start a heartbeat thread
-    threading.Thread(target=heartbeat).start()
-
     # Enable memory debugging
     if jm_memstat == 1:
         memstat.enable()
@@ -766,11 +768,22 @@ def main(argv):
         runid[0] = runid[0] + 1
         return run(argv, jobinfo, job, runid[0])
 
+    # Wrapper for the heartbeat
+    finished = [False]
+    def heartbeat_wrapper():
+        heartbeat(finished)
+
+    # Start the heartbeat
+    threading.Thread(target=heartbeat_wrapper).start()
+
     # Run the module
     logging.info('Running module')
     memstat.stats()
     r = job.spits_main(margv, run_wrapper)
     memstat.stats()
+
+    # Stop the heartbeat thread
+    finished[0] = True
 
     # Kill the workers
     if jm_killtms:
