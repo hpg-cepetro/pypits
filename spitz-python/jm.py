@@ -41,6 +41,7 @@ jm_send_backoff = None # Job Manager delay between sending tasks
 jm_recv_backoff = None # Job Manager delay between sending tasks
 jm_memstat = None # 1 to display memory statistics
 jm_heartbeat_interval = None
+jm_jobid = None
 
 ###############################################################################
 # Parse global configuration
@@ -48,7 +49,7 @@ jm_heartbeat_interval = None
 def parse_global_config(argdict):
     global jm_killtms, jm_log_file, jm_verbosity, jm_heart_timeout, \
         jm_conn_timeout, jm_recv_timeout, jm_send_timeout, jm_send_backoff, \
-        jm_recv_backoff, jm_memstat, jm_heartbeat_interval
+        jm_recv_backoff, jm_memstat, jm_heartbeat_interval, jm_jobid
 
     def as_int(v):
         if v == None:
@@ -76,6 +77,7 @@ def parse_global_config(argdict):
     jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
     jm_memstat = as_int(argdict.get('memstat', 0))
     jm_heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
+    jm_jobid = argdict.get('jobid', '')
 
 ###############################################################################
 # Configure the log output format
@@ -234,8 +236,20 @@ def setup_endpoint_for_pushing(e):
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
 
+        # Send the job identifier
+        e.WriteString(jm_jobid)
+
         # Ask if it is possible to send tasks
         e.WriteInt64(messaging.msg_send_task)
+
+        # Verify job id of the answer
+        jobid = e.ReadString(jm_recv_timeout)
+
+        if jm_jobid != jobid:
+            logging.error('Job Id mismatch from %s:%d! Self: %s, task manager: %s!',
+                e.address, e.port, jm_jobid, jobid)
+            e.Close()
+            return False
 
         # Wait for a response
         response = e.ReadInt64(jm_recv_timeout)
@@ -257,6 +271,7 @@ def setup_endpoint_for_pushing(e):
         # Problem connecting to the task manager
         logging.warning('Error connecting to task manager at %s:%d!',
             e.address, e.port)
+        traceback.print_exc()
 
     e.Close()
     return False
@@ -269,8 +284,20 @@ def setup_endpoint_for_pulling(e):
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
 
+        # Send the job identifier
+        e.WriteString(jm_jobid)
+
         # Ask if it is possible to send tasks
         e.WriteInt64(messaging.msg_read_result)
+
+        # Verify job id of the answer
+        jobid = e.ReadString(jm_recv_timeout)
+
+        if jm_jobid != jobid:
+            logging.error('Job Id mismatch from %s:%d! Self: %s, task manager: %s!',
+                e.address, e.port, jm_jobid, jobid)
+            e.Close()
+            return False
 
         return True
 
@@ -278,6 +305,7 @@ def setup_endpoint_for_pulling(e):
         # Problem connecting to the task manager
         logging.warning('Error connecting to task manager at %s:%d!',
             e.address, e.port)
+        traceback.print_exc()
 
     e.Close()
     return False
@@ -357,6 +385,7 @@ def push_tasks(job, runid, jm, tm, taskid, task, tasklist):
         except:
             # Something went wrong with the connection,
             # try with another task manager
+            logging.error('Error pushing tasks to task manager!')
             traceback.print_exc()
             break
 
@@ -495,6 +524,7 @@ def heartbeat(finished):
     t_last = time.clock()
     for isEnd, name, tm in infinite_tmlist_generator():
         if finished[0]:
+            logging.debug('Stopping heartbeat thread...')
             return
         if isEnd:
             t_curr = time.clock()
@@ -505,10 +535,26 @@ def heartbeat(finished):
         else:
             try:
                 tm.Open(jm_heart_timeout)
+
+                # Send the job identifier
+                tm.WriteString(jm_jobid)
+
+                # Verify job id of the answer
+                jobid = tm.ReadString(jm_recv_timeout)
+
+                if jm_jobid != jobid:
+                    logging.error('Job Id mismatch from %s:%d! Self: %s, task manager: %s!',
+                        tm.address, tm.port, jm_jobid, jobid)
+                    tm.Close()
+                    continue
+
+                # Send the heartbeat
                 tm.WriteInt64(messaging.msg_send_heart)
                 tm.ReadInt64(jm_heart_timeout)
             except:
-                pass
+                logging.warning('Error connecting to task manager at %s:%d!',
+                    tm.address, tm.port)
+                traceback.print_exc()
             finally:
                 tm.Close()
 
@@ -665,12 +711,17 @@ def killtms():
             logging.debug('Connecting to %s:%d...', tm.address, tm.port)
 
             tm.Open(jm_conn_timeout)
+
+            # Send the job identifier
+            tm.WriteString(jm_jobid)
+
             tm.WriteInt64(messaging.msg_terminate)
             tm.Close()
         except:
             # Problem connecting to the task manager
             logging.warning('Error connecting to task manager at %s:%d!',
                 tm.address, tm.port)
+            traceback.print_exc()
 
 ###############################################################################
 # Run routine

@@ -28,7 +28,7 @@ from libspitz import messaging, config
 from libspitz import timeout as Timeout
 
 import Args
-import sys, os, socket, datetime, logging, multiprocessing, struct, time
+import sys, os, socket, datetime, logging, multiprocessing, struct, time, traceback
 
 from threading import Lock
 
@@ -50,6 +50,7 @@ tm_conn_timeout = None # Socket connect timeout
 tm_recv_timeout = None # Socket receive timeout
 tm_send_timeout = None # Socket send timeout
 tm_timeout = None
+tm_jobid = None
 
 ###############################################################################
 # Parse global configuration
@@ -57,7 +58,7 @@ tm_timeout = None
 def parse_global_config(argdict):
     global tm_mode, tm_addr, tm_port, tm_nw, tm_log_file, tm_verbosity, \
         tm_overfill, tm_announce, tm_conn_timeout, tm_recv_timeout, \
-        tm_send_timeout, tm_timeout
+        tm_send_timeout, tm_timeout, tm_jobid
 
     def as_int(v):
         if v == None:
@@ -83,6 +84,7 @@ def parse_global_config(argdict):
     tm_recv_timeout = as_float(argdict.get('rtimeout', config.recv_timeout))
     tm_send_timeout = as_float(argdict.get('stimeout', config.send_timeout))
     tm_timeout = as_float(argdict.get('timeout', config.timeout))
+    tm_jobid = argdict.get('jobid', '')
 
 ###############################################################################
 # Configure the log output format
@@ -164,6 +166,18 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
     logging.debug('Connected to %s:%d.', addr, port)
 
     try:
+        # Send the job identifier
+        conn.WriteString(tm_jobid)
+
+        # Verify job id of the answer
+        jobid = conn.ReadString(tm_recv_timeout)
+
+        if tm_jobid != jobid:
+            logging.error('Job Id mismatch from %s:%d! Self: %s, task manager: %s!',
+                conn.address, conn.port, jm_jobid, jobid)
+            conn.Close()
+            return False
+
         # Read the type of message
         mtype = conn.ReadInt64(tm_recv_timeout)
         timeout.reset()
@@ -176,7 +190,8 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
 
         # Job manager is sending heartbeats
         if mtype == messaging.msg_send_heart:
-            pass
+            logging.debug('Received heartbeat from %s:%d', addr, port)
+
         # Job manager is trying to send tasks to the task manager
         elif mtype == messaging.msg_send_task:
             # Two phase pull: test-try-pull
@@ -261,6 +276,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
     except:
         logging.warning('Error occurred while reading request from %s:%d!',
             addr, port)
+        traceback.print_exc()
 
     conn.Close()
     logging.debug('Connection to %s:%d closed.', addr, port)
