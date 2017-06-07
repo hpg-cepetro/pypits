@@ -550,7 +550,6 @@ def heartbeat(finished):
 
                 # Send the heartbeat
                 tm.WriteInt64(messaging.msg_send_heart)
-                tm.ReadInt64(jm_heart_timeout)
             except:
                 logging.warning('Error connecting to task manager at %s:%d!',
                     tm.address, tm.port)
