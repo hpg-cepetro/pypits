@@ -715,6 +715,9 @@ def killtms():
             # Send the job identifier
             tm.WriteString(jm_jobid)
 
+            # Read back the job id of the answer
+            tm.ReadString(jm_recv_timeout)
+
             tm.WriteInt64(messaging.msg_terminate)
             tm.Close()
         except:
