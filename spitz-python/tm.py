@@ -157,7 +157,7 @@ def announce_file(addr, dirname = None):
         f.write("node %s\n" % addr)
         f.close()
     except:
-        logging.warning('Failed to write to %s!' % (nodefile,))
+        logging.warning('Failed to write to %s!' % (filename,))
 
 ###############################################################################
 # Server callback
@@ -174,7 +174,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
 
         if tm_jobid != jobid:
             logging.error('Job Id mismatch from %s:%d! Self: %s, task manager: %s!',
-                conn.address, conn.port, jm_jobid, jobid)
+                conn.address, conn.port, tm_jobid, jobid)
             conn.Close()
             return False
 
