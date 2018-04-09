@@ -33,6 +33,7 @@ from .ClientEndpoint import ClientEndpoint
 from .Listener import Listener
 from .TaskPool import TaskPool
 from .Timeout import timeout
+from .PerfModule import PerfModule
 from .UIDUtils import make_uid
 
 def main():
