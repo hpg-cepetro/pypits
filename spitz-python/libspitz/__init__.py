@@ -22,6 +22,8 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
 # IN THE SOFTWARE.
 
+from .LogUtils import *
+
 from .JobBinary import JobBinary
 
 from .Endpoint import Endpoint

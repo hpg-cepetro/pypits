@@ -13,7 +13,7 @@
 # 
 # The above copyright notice and this permission notice shall be included in 
 # all copies or substantial portions of the Software.
-# 
+# from .LogUtils import log_lines
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
@@ -26,6 +26,7 @@ from libspitz import JobBinary, SimpleEndpoint
 from libspitz import Listener, TaskPool
 from libspitz import messaging, config
 from libspitz import timeout as Timeout
+from libspitz import log_lines
 
 import Args
 import sys, os, socket, datetime, logging, multiprocessing, struct, time, traceback
@@ -276,7 +277,7 @@ def server_callback(conn, addr, port, job, tpool, cqueue, timeout):
     except:
         logging.warning('Error occurred while reading request from %s:%d!',
             addr, port)
-        traceback.print_exc()
+        log_lines(traceback.format_exc(), logging.debug)
 
     conn.Close()
     logging.debug('Connection to %s:%d closed.', addr, port)
