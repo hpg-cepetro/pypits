@@ -25,7 +25,10 @@
 from libspitz import JobBinary, SimpleEndpoint
 from libspitz import messaging, config
 from libspitz import memstat
+from libspitz import make_uid
 from libspitz import log_lines
+
+from libspitz import PerfModule
 
 import Args
 import sys, threading, os, time, ctypes, logging, struct, threading, traceback
@@ -41,6 +44,9 @@ jm_send_timeout = None # Socket send timeout
 jm_send_backoff = None # Job Manager delay between sending tasks
 jm_recv_backoff = None # Job Manager delay between sending tasks
 jm_memstat = None # 1 to display memory statistics
+jm_profiling = None # 1 to enable profiling
+jm_perf_rinterv = None # Profiling report interval (seconds)
+jm_perf_subsamp = None # Number of samples collected between report intervals
 jm_heartbeat_interval = None
 jm_jobid = None
 
@@ -50,7 +56,8 @@ jm_jobid = None
 def parse_global_config(argdict):
     global jm_killtms, jm_log_file, jm_verbosity, jm_heart_timeout, \
         jm_conn_timeout, jm_recv_timeout, jm_send_timeout, jm_send_backoff, \
-        jm_recv_backoff, jm_memstat, jm_heartbeat_interval, jm_jobid
+        jm_recv_backoff, jm_memstat, jm_profiling, jm_perf_rinterv, \
+        jm_perf_subsamp, jm_heartbeat_interval, jm_jobid
 
     def as_int(v):
         if v == None:
@@ -77,6 +84,9 @@ def parse_global_config(argdict):
     jm_recv_backoff = as_float(argdict.get('rbackoff', config.recv_backoff))
     jm_send_backoff = as_float(argdict.get('sbackoff', config.send_backoff))
     jm_memstat = as_int(argdict.get('memstat', 0))
+    jm_profiling = as_int(argdict.get('profiling', 0))
+    jm_perf_rinterv = as_int(argdict.get('rinterv', 60))
+    jm_perf_subsamp = as_int(argdict.get('rinterv', 12))
     jm_heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
     jm_jobid = argdict.get('jobid', '')
 
@@ -833,6 +843,10 @@ def main(argv):
     if jm_memstat == 1:
         memstat.enable()
     memstat.stats()
+
+    # Enable perf module
+    if jm_profiling:
+        PerfModule(make_uid(), 0, jm_perf_rinterv, jm_perf_subsamp)
 
     # Load the module
     module = args.margs[0]
