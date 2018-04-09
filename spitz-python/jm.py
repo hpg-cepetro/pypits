@@ -25,6 +25,7 @@
 from libspitz import JobBinary, SimpleEndpoint
 from libspitz import messaging, config
 from libspitz import memstat
+from libspitz import log_lines
 
 import Args
 import sys, threading, os, time, ctypes, logging, struct, threading, traceback
@@ -235,7 +236,16 @@ def setup_endpoint_for_pushing(e):
     try:
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
-
+    except:
+        # Problem connecting to the task manager
+        # Because this is a connection event, 
+        # make it a debug rather than a warning
+        logging.debug('Error connecting to task manager at %s:%d!',
+            e.address, e.port)
+        log_lines(traceback.format_exc(), logging.debug)
+        e.Close()
+        return
+    try:
         # Send the job identifier
         e.WriteString(jm_jobid)
 
@@ -271,7 +281,7 @@ def setup_endpoint_for_pushing(e):
         # Problem connecting to the task manager
         logging.warning('Error connecting to task manager at %s:%d!',
             e.address, e.port)
-        traceback.print_exc()
+        log_lines(traceback.format_exc(), logging.debug)
 
     e.Close()
     return False
@@ -283,7 +293,16 @@ def setup_endpoint_for_pulling(e):
     try:
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
-
+    except:
+        # Problem connecting to the task manager
+        # Because this is a connection event, 
+        # make it a debug rather than a warning
+        logging.debug('Error connecting to task manager at %s:%d!',
+            e.address, e.port)
+        log_lines(traceback.format_exc(), logging.debug)
+        e.Close()
+        return
+    try:
         # Send the job identifier
         e.WriteString(jm_jobid)
 
@@ -305,7 +324,7 @@ def setup_endpoint_for_pulling(e):
         # Problem connecting to the task manager
         logging.warning('Error connecting to task manager at %s:%d!',
             e.address, e.port)
-        traceback.print_exc()
+        log_lines(traceback.format_exc(), logging.debug)
 
     e.Close()
     return False
@@ -386,7 +405,7 @@ def push_tasks(job, runid, jm, tm, taskid, task, tasklist):
             # Something went wrong with the connection,
             # try with another task manager
             logging.error('Error pushing tasks to task manager!')
-            traceback.print_exc()
+            log_lines(traceback.format_exc(), logging.debug)
             break
 
     return (False, taskid, task, sent)
@@ -535,7 +554,16 @@ def heartbeat(finished):
         else:
             try:
                 tm.Open(jm_heart_timeout)
-
+            except:
+                # Problem connecting to the task manager
+                # Because this is a connection event, 
+                # make it a debug rather than a warning
+                logging.debug('Error connecting to task manager at %s:%d!',
+                    tm.address, tm.port)
+                log_lines(traceback.format_exc(), logging.debug)
+                tm.Close()
+                continue
+            try:
                 # Send the job identifier
                 tm.WriteString(jm_jobid)
 
@@ -553,7 +581,7 @@ def heartbeat(finished):
             except:
                 logging.warning('Error connecting to task manager at %s:%d!',
                     tm.address, tm.port)
-                traceback.print_exc()
+                log_lines(traceback.format_exc(), logging.debug)
             finally:
                 tm.Close()
 
@@ -723,7 +751,7 @@ def killtms():
             # Problem connecting to the task manager
             logging.warning('Error connecting to task manager at %s:%d!',
                 tm.address, tm.port)
-            traceback.print_exc()
+            log_lines(traceback.format_exc(), logging.debug)
 
 ###############################################################################
 # Run routine
