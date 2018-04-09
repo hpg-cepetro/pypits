@@ -26,6 +26,7 @@ from libspitz import JobBinary, SimpleEndpoint
 from libspitz import Listener, TaskPool
 from libspitz import messaging, config
 from libspitz import timeout as Timeout
+from libspitz import make_uid
 from libspitz import log_lines
 
 import Args
@@ -142,13 +143,8 @@ def announce_file(addr, dirname = None):
             pass
 
     # Create a unique filename for the process
-    pid = os.getpid()
-    hostname = socket.gethostname()
-    hostname = [c for c in hostname if c == ' ' or c == '-' or 
-        (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or 
-        (c >= '0' and c <= '9')]
-    hostname = ''.join(hostname)
-    filename = os.path.join('.', dirname, '%s-%s' % (hostname, pid))
+    uid = make_uid()
+    filename = os.path.join('.', dirname, uid)
 
     logging.debug('Adding node %s to directory %s...' % 
         (addr, dirname))
