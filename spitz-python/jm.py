@@ -236,7 +236,16 @@ def setup_endpoint_for_pushing(e):
     try:
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
-
+    except:
+        # Problem connecting to the task manager
+        # Because this is a connection event, 
+        # make it a debug rather than a warning
+        logging.debug('Error connecting to task manager at %s:%d!',
+            e.address, e.port)
+        log_lines(traceback.format_exc(), logging.debug)
+        e.Close()
+        return
+    try:
         # Send the job identifier
         e.WriteString(jm_jobid)
 
@@ -284,7 +293,16 @@ def setup_endpoint_for_pulling(e):
     try:
         # Try to connect to a task manager
         e.Open(jm_conn_timeout)
-
+    except:
+        # Problem connecting to the task manager
+        # Because this is a connection event, 
+        # make it a debug rather than a warning
+        logging.debug('Error connecting to task manager at %s:%d!',
+            e.address, e.port)
+        log_lines(traceback.format_exc(), logging.debug)
+        e.Close()
+        return
+    try:
         # Send the job identifier
         e.WriteString(jm_jobid)
 
@@ -536,7 +554,16 @@ def heartbeat(finished):
         else:
             try:
                 tm.Open(jm_heart_timeout)
-
+            except:
+                # Problem connecting to the task manager
+                # Because this is a connection event, 
+                # make it a debug rather than a warning
+                logging.debug('Error connecting to task manager at %s:%d!',
+                    tm.address, tm.port)
+                log_lines(traceback.format_exc(), logging.debug)
+                tm.Close()
+                continue
+            try:
                 # Send the job identifier
                 tm.WriteString(jm_jobid)
 
