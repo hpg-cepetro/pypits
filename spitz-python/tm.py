@@ -94,7 +94,7 @@ def parse_global_config(argdict):
     tm_timeout = as_float(argdict.get('timeout', config.timeout))
     tm_profiling = as_int(argdict.get('profiling', 0))
     tm_perf_rinterv = as_int(argdict.get('rinterv', 60))
-    tm_perf_subsamp = as_int(argdict.get('subsamp', 12)
+    tm_perf_subsamp = as_int(argdict.get('subsamp', 12))
     tm_jobid = argdict.get('jobid', '')
 
 ###############################################################################
