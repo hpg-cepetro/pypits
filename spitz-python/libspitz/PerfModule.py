@@ -24,6 +24,8 @@
 
 import os, time, timeit, threading, logging, datetime
 
+from .pynvml import *
+
 class PerfModule():
     """
     Performance statistics acquisition module for PY-PITZ. The statistics
@@ -39,10 +41,10 @@ class PerfModule():
       - CPU utilization in system mode (min, max, avg) [%]
       - Total CPU utilization (min, max, avg) [%]
       - Resident set size (min, max, avg) [MiB]
-
-    Planned statistics:
       - NVIDIA GPU utilization
       - NVIDIA GPU memory
+
+    Planned statistics:
       - AMD GPU utilization
       - AMD GPU memory
 
@@ -77,6 +79,8 @@ class PerfModule():
 
         logging.info('Starting PerfModule...')
 
+        # CPU thread
+
         def runcpu_wrapper():
             self.RunCPU()
 
@@ -93,6 +97,50 @@ class PerfModule():
             pass
 
         tcpu.start()
+
+        # NV thread
+
+        # Initialize NVML
+
+        try:
+            nvmlInit()
+        except:
+            logging.error('PerfModule: Could not initialize NVML!')
+            return
+
+        # List the GPUs in the system
+
+        try:
+            ngpus = 0
+            ngpus = nvmlDeviceGetCount()
+        except:
+            logging.error('PerfModule: Could not enumerate GPU devices!')
+
+        # Start the NVML threads
+
+        for i in range(ngpus):
+            try:
+                handle = nvmlDeviceGetHandleByIndex(i)
+            except:
+                logging.error('PerfModule: Failed to access GPU {}!'.format(i))
+                continue
+
+            def runnv_wrapper():
+                self.RunNV(i, handle)
+
+            tnv = threading.Thread(target=runnv_wrapper)
+
+            try:
+                tnv.daemon = True
+            except:
+                pass
+
+            try:
+                tnv.setDaemon(True)
+            except:
+                pass
+
+            tnv.start()
 
     def Stop(self):
         """
@@ -138,7 +186,7 @@ class PerfModule():
 
     def Stat(self, pid):
         """
-        Query /proc/PID/stat
+        Query /proc/PID/stat.
 
         Arguments:
           
@@ -146,11 +194,11 @@ class PerfModule():
 
         Return:
 
-          A tuple with the raw RSS, user time and system time
+          A tuple with the raw RSS, user time and system time.
 
         Note:
 
-          This method will throw exception on failure
+          This method will throw exception on failure.
         """
 
         with open('/proc/%d/stat' % pid, 'rt') as f:
@@ -172,9 +220,70 @@ class PerfModule():
 
         return (rss, ut, st)
 
+    def NVStat(self, handle, pid):
+        """
+        Query information about a GPU.
+
+        Arguments:
+          
+          pid: The target process id.
+          handle: The NVML handle for the device.
+
+        Return:
+
+          A tuple with the utilization, temperature, sm clock, memory clock, 
+          total used memory and used memory by the specified PID.
+
+        Note:
+
+          Values not supported will be filled with N/A.
+        """
+
+        error = -1.0
+
+        try:
+            util = nvmlDeviceGetUtilizationRates(handle)
+            ut = util.gpu
+            mut = util.memory
+        except:
+            ut = error
+            mut = error
+
+        try:
+            temp = nvmlDeviceGetTemperature(handle, NVML_TEMPERATURE_GPU)
+        except:
+            temp = error
+
+        try:
+            smclk = nvmlDeviceGetClockInfo(handle, NVML_CLOCK_GRAPHICS)
+        except:
+            smclk = error
+
+        try:
+            memclk = nvmlDeviceGetClockInfo(handle, NVML_CLOCK_MEM)
+        except:
+            memclk = error
+
+        try:
+            meminfo = nvmlDeviceGetMemoryInfo(handle)
+            mem = meminfo.used / 1024.0 / 1024.0
+        except:
+            mem = error
+
+        try:
+            pmem = error
+            for proc in nvmlDeviceGetComputeRunningProcesses(handle):
+                if proc.pid == pid and not proc.usedGpuMemory is None:
+                    pmem = proc.usedGpuMemory / 1024.0 / 1024.0
+        except:
+            pass
+
+        return (ut, mut, temp, smclk, memclk, mem, pmem)
+            
+
     def RunCPU(self):
         """
-        CPU Monitoring thread
+        CPU Monitoring thread.
         """
 
         # Compute the sleep delay
@@ -269,7 +378,7 @@ class PerfModule():
                     wt = timeit.default_timer()
                     rss, ut, st = self.Stat(pid)
 
-                    rss = rss * pagesize / 1024 / 1024
+                    rss = rss * pagesize / 1024.0 / 1024.0
                     ut = ut / ticpersec
                     st = st / ticpersec
 
@@ -355,3 +464,218 @@ class PerfModule():
                 isnew = False
 
         logging.info('PerfModule CPU thread stopped.')
+
+    def RunNV(self, igpu, handle):
+        """
+        NVIDIA GPU Monitoring thread
+        """
+
+        # Compute the sleep delay
+
+        delay = float(self.rinterv) / self.subsamp
+
+        # Load the basic information about the GPU
+
+        try:
+            name = nvmlDeviceGetName(handle).decode('utf8')
+            brand = nvmlDeviceGetBrand(handle)
+            brandNames = {
+                NVML_BRAND_UNKNOWN : "Unknown",
+                NVML_BRAND_QUADRO  : "Quadro",
+                NVML_BRAND_TESLA   : "Tesla",
+                NVML_BRAND_NVS     : "NVS",
+                NVML_BRAND_GRID    : "Grid",
+                NVML_BRAND_GEFORCE : "GeForce",
+            }
+            fullname = '{} {}'.format(brandNames[brand], name)
+        except:
+            logging.error('PerfModule: Could not access GPU information!')
+            return
+
+        try:
+            meminfo = nvmlDeviceGetMemoryInfo(handle)
+            memtotal = str(meminfo.total / 1024 / 1024) + ' MiB'
+        except:
+            memtotal = 'N/A'
+
+        # Get the process PID
+
+        pid = os.getpid()
+
+        # Run the perf module
+
+        logging.info('PerfModule NV thread started.')
+
+        isnew = True
+
+        refwtime = 0
+        lastwtime = 0
+
+        while not self.stop:
+
+            minut = 0
+            maxut = 0
+            avgut = 0
+
+            minmut = 0
+            maxmut = 0
+            avgmut = 0
+
+            mintemp = 0
+            maxtemp = 0
+            avgtemp = 0
+
+            minsmclk = 0
+            maxsmclk = 0
+            avgsmclk = 0
+
+            minmemclk = 0
+            maxmemclk = 0
+            avgmemclk = 0
+
+            minmem = 0
+            maxmem = 0
+            avgmem = 0
+
+            minpmem = 0
+            maxpmem = 0
+            avgpmem = 0
+
+            n = 0
+
+            gpuheader = """# (1) Total wall time (since beginning of PerfModule) [us]
+# (2-4) Utilization (min, max, avg) [%]
+# (5-7) Temperature (min, max, avg) [oC]
+# (8-10) SM Clock (min, max, avg) [MHz]
+# (11-13) Memory Clock (min, max, avg) [MHz]"""
+
+            memheader = """# (1) Total wall time (since beginning of PerfModule) [us]
+# (2-4) Total used memory (min, max, avg) [MiB]
+# (5-7) Memory used by current PID (min, max, avg) [MiB]
+# (8-10) Memory controller utilization (min, max, avg) [%]"""
+
+            for sample in range(self.subsamp):
+
+                if self.stop:
+                    break
+
+                try:
+
+                    wt = timeit.default_timer()
+                    ut, mut, temp, smclk, memclk, mem, pmem = self.NVStat(handle, pid)
+
+                    if refwtime == 0:
+
+                        refwtime = wt
+                        delta = delay
+
+                        refstamp = datetime.datetime.utcnow()
+                        cpuheader = '# ' + \
+                            refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
+                            '\n# ' + fullname + '\n' + gpuheader
+                        memheader = '# ' + \
+                            refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
+                            '\n# ' + fullname + '\n# ' + memtotal + '\n' + memheader
+
+                    else:
+
+                        delta = wt - lastwtime
+
+                        avgut += ut
+                        avgmut += mut
+                        avgtemp += temp
+                        avgsmclk += smclk
+                        avgmemclk += memclk
+                        avgmem += mem
+                        avgpmem += pmem
+
+                        if n == 0:
+                            minut = ut
+                            maxut = ut
+                            minmut = mut
+                            maxmut = mut
+                            mintemp = temp
+                            maxtemp = temp
+                            minsmclk = smclk
+                            maxsmclk = smclk
+                            minmemclk = memclk
+                            maxmemclk = memclk
+                            minmem = mem
+                            maxmem = mem
+                            minpmem = pmem
+                            maxpmem = pmem
+                        else:
+                            minut = min(minut, ut)
+                            maxut = max(maxut, ut)
+                            minmut = min(minmut, mut)
+                            maxmut = max(maxmut, mut)
+                            mintemp = min(mintemp, temp)
+                            maxtemp = max(maxtemp, temp)
+                            minsmclk = min(minsmclk, smclk)
+                            maxsmclk = max(maxsmclk, smclk)
+                            minmemclk = min(minmemclk, memclk)
+                            maxmemclk = max(maxmemclk, memclk)
+                            minmem = min(minmem, mem)
+                            maxmem = max(maxmem, mem)
+                            minpmem = min(minpmem, pmem)
+                            maxpmem = max(maxpmem, pmem)
+
+                        n += 1
+
+                    lastwtime = wt
+
+                except:
+                    # Ignore errors
+                    pass
+
+                time.sleep(delay)
+
+            # Something went wrong
+            if n == 0:
+                continue
+
+            wtime = int((wt - refwtime) * 1000000)
+
+            avgut /= float(n)
+            avgmut /= float(n)
+            avgtemp /= float(n)
+            avgsmclk /= float(n)
+            avgmemclk /= float(n)
+            avgmem /= float(n)
+            avgpmem /= float(n)
+
+            minut = minut if minut >= 0 else 'N/A'
+            minmut = minmut if minmut >= 0 else 'N/A'
+            mintemp = mintemp if mintemp >= 0 else 'N/A'
+            minsmclk = minsmclk if minsmclk >= 0 else 'N/A'
+            minmemclk = minmemclk if minmemclk >= 0 else 'N/A'
+            minmem = minmem if minmem >= 0 else 'N/A'
+            minpmem = minpmem if minpmem >= 0 else 'N/A'
+
+            maxut = maxut if maxut >= 0 else 'N/A'
+            maxmut = maxmut if maxmut >= 0 else 'N/A'
+            maxtemp = maxtemp if maxtemp >= 0 else 'N/A'
+            maxsmclk = maxsmclk if maxsmclk >= 0 else 'N/A'
+            maxmemclk = maxmemclk if maxmemclk >= 0 else 'N/A'
+            maxmem = maxmem if maxmem >= 0 else 'N/A'
+            maxpmem = maxpmem if maxpmem >= 0 else 'N/A'
+
+            avgut = avgut if avgut >= 0 else 'N/A'
+            avgmut = avgmut if avgmut >= 0 else 'N/A'
+            avgtemp = avgtemp if avgtemp >= 0 else 'N/A'
+            avgsmclk = avgsmclk if avgsmclk >= 0 else 'N/A'
+            avgmemclk = avgmemclk if avgmemclk >= 0 else 'N/A'
+            avgmem = avgmem if avgmem >= 0 else 'N/A'
+            avgpmem = avgpmem if avgpmem >= 0 else 'N/A'
+
+            if not self.stop:
+                self.Dump(cpuheader, [wtime, minut, maxut, avgut, 
+                    mintemp, maxtemp, avgtemp, minsmclk, maxsmclk, avgsmclk, 
+                    minmemclk, maxmemclk, avgmemclk], 
+                    'gpu-{}'.format(igpu), isnew)
+                self.Dump(memheader, [wtime, minmem, maxmem, avgmem, minpmem, 
+                    maxpmem, avgpmem, minmut, maxmut, avgmut], 
+                    'gpumem-{}'.format(igpu), isnew)
+                isnew = False
+
+        logging.info('PerfModule NV thread stopped.')
