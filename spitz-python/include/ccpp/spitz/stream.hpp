@@ -210,13 +210,43 @@ namespace spitz {
         bool read_bool() { uint8_t v = get1(); return v ? true : false; }
         int8_t read_char() { return get1(); }
         uint8_t read_byte() { char v = get1(); return *((int8_t*)&v); }
-        float read_float() { uint32_t v = get4(); return *((float*)(char*)&v); }
-        double read_double() { uint64_t v = get8(); return *((double*)(char*)&v); }
-        int16_t read_short() { uint16_t v = get2(); return *((int16_t*)(char*)&v); }
+        float read_float() {
+            union {
+                uint32_t v;
+                float f;
+            } v = { get4() };
+            return v.f;
+        }
+        double read_double() {
+            union {
+                uint64_t v;
+                double f;
+            } v = { get8() };
+            return v.f;
+        }
+        int16_t read_short() {
+            union {
+                uint16_t u;
+                int16_t i;
+            } v = { get2() };
+            return v.i;
+        }
         uint16_t read_ushort() { return get2(); }
-        int32_t read_int() { uint32_t v = get4(); return *((int32_t*)(char*)&v); }
+        int32_t read_int() {
+            union {
+                uint32_t u;
+                int32_t i;
+            } v = { get4() };
+            return v.i;
+        }
         uint32_t read_uint() { return get4(); }
-        int64_t read_longlong() { uint64_t v = get8(); return *((int64_t*)(char*)&v); }
+        int64_t read_longlong() {
+            union {
+                uint64_t u;
+                int64_t i;
+            } v = { get8() };
+            return v.i;
+        }
         uint64_t read_ulonglong() { return get8(); }
         std::string read_string()
         { 
