@@ -122,7 +122,7 @@ class PerfModule():
             try:
                 handle = nvmlDeviceGetHandleByIndex(i)
             except:
-                logging.error('PerfModule: Failed to access GPU {}!'.format(i))
+                logging.error('PerfModule: Failed to access GPU %d!' % i)
                 continue
 
             def runnv_wrapper():
@@ -487,7 +487,7 @@ class PerfModule():
                 NVML_BRAND_GRID    : "Grid",
                 NVML_BRAND_GEFORCE : "GeForce",
             }
-            fullname = '{} {}'.format(brandNames[brand], name)
+            fullname = '%s %s' % (brandNames[brand], name)
         except:
             logging.error('PerfModule: Could not access GPU information!')
             return
@@ -672,10 +672,10 @@ class PerfModule():
                 self.Dump(cpuheader, [wtime, minut, maxut, avgut, 
                     mintemp, maxtemp, avgtemp, minsmclk, maxsmclk, avgsmclk, 
                     minmemclk, maxmemclk, avgmemclk], 
-                    'gpu-{}'.format(igpu), isnew)
+                    'gpu-%d' % igpu, isnew)
                 self.Dump(memheader, [wtime, minmem, maxmem, avgmem, minpmem, 
                     maxpmem, avgpmem, minmut, maxmut, avgmut], 
-                    'gpumem-{}'.format(igpu), isnew)
+                    'gpumem-%d' % igpu, isnew)
                 isnew = False
 
         logging.info('PerfModule NV thread stopped.')
