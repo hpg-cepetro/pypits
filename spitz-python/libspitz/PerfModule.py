@@ -351,7 +351,7 @@ class PerfModule():
                 self.Dump(cpuheader, [self.nw, wtime, utime, stime, minupct, 
                     maxupct, avgupct, minspct, maxspct, avgspct, mintpct, 
                     maxtpct, avgtpct], 'cpu', isnew)
-                self.Dump(memheader, [wtime, minrss, maxrss, avgrss], 'mem', isnew)
+                self.Dump(memheader, [wtime, minrss, maxrss, avgrss], 'cpumem', isnew)
                 isnew = False
 
         logging.info('PerfModule stopped.')
