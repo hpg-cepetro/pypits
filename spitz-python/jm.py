@@ -86,7 +86,7 @@ def parse_global_config(argdict):
     jm_memstat = as_int(argdict.get('memstat', 0))
     jm_profiling = as_int(argdict.get('profiling', 0))
     jm_perf_rinterv = as_int(argdict.get('rinterv', 60))
-    jm_perf_subsamp = as_int(argdict.get('rinterv', 12))
+    jm_perf_subsamp = as_int(argdict.get('subsamp', 12))
     jm_heartbeat_interval = as_float(argdict.get('heartbeat-interval', 10))
     jm_jobid = argdict.get('jobid', '')
 
