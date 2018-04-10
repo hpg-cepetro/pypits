@@ -77,22 +77,22 @@ class PerfModule():
 
         logging.info('Starting PerfModule...')
 
-        def run_wrapper():
-            self.Run()
+        def runcpu_wrapper():
+            self.RunCPU()
 
-        t = threading.Thread(target=run_wrapper)
+        tcpu = threading.Thread(target=runcpu_wrapper)
 
         try:
-            t.daemon = True
+            tcpu.daemon = True
         except:
             pass
 
         try:
-            t.setDaemon(True)
+            tcpu.setDaemon(True)
         except:
             pass
 
-        t.start()
+        tcpu.start()
 
     def Stop(self):
         """
@@ -172,9 +172,9 @@ class PerfModule():
 
         return (rss, ut, st)
 
-    def Run(self):
+    def RunCPU(self):
         """
-        Monitoring thread
+        CPU Monitoring thread
         """
 
         # Compute the sleep delay
@@ -214,7 +214,7 @@ class PerfModule():
 
         # Run the perf module
 
-        logging.info('PerfModule thread started.')
+        logging.info('PerfModule CPU thread started.')
 
         isnew = True
 
@@ -354,4 +354,4 @@ class PerfModule():
                 self.Dump(memheader, [wtime, minrss, maxrss, avgrss], 'cpumem', isnew)
                 isnew = False
 
-        logging.info('PerfModule stopped.')
+        logging.info('PerfModule CPU thread stopped.')
