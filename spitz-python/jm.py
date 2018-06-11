@@ -342,11 +342,17 @@ def setup_endpoint_for_pulling(e):
 ###############################################################################
 # Push tasks while the task manager is not full
 ###############################################################################
-def push_tasks(job, runid, jm, tm, taskid, task, tasklist):
+def push_tasks(job, runid, jm, tm, taskid, task, tasklist, completed):
     # Keep pushing until finished or the task manager is full
     sent = []
     while True:
         if task == None:
+
+            # Avoid calling next_task after it's finished
+            if completed:
+                logging.debug('There are no new tasks to generate.')
+                return (True, 0, None, sent)
+
             # Only get a task if the last one was already sent
             newtaskid = taskid + 1
             r1, newtask, ctx = job.spits_job_manager_next_task(jm, newtaskid)
@@ -634,23 +640,23 @@ def jobmanager(argv, job, runid, jm, tasklist, completed):
             # Open the connection to the task manager and query if it is
             # possible to send data
             if not setup_endpoint_for_pushing(tm):
-                continue
+                finished = False
+            else:
+                logging.debug('Pushing tasks to %s:%d...', tm.address, tm.port)
 
-            logging.debug('Pushing tasks to %s:%d...', tm.address, tm.port)
+                # Task pushing loop
+                memstat.stats()
+                finished, taskid, task, sent = push_tasks(job, runid, jm, 
+                    tm, taskid, task, tasklist, completed[0] == 1)
 
-            # Task pushing loop
-            memstat.stats()
-            finished, taskid, task, sent = push_tasks(job, runid, jm, tm,
-                taskid, task, tasklist)
+                # Add the sent tasks to the sumission list
+                submissions = submissions + sent
 
-            # Add the sent tasks to the sumission list
-            submissions = submissions + sent
+                # Close the connection with the task manager
+                tm.Close()
 
-            # Close the connection with the task manager
-            tm.Close()
-
-            logging.debug('Finished pushing tasks to %s:%d.',
-                tm.address, tm.port)
+                logging.debug('Finished pushing tasks to %s:%d.',
+                    tm.address, tm.port)
 
             if finished and completed[0] == 0:
                 # Tell everyone the task generation was completed
@@ -659,6 +665,7 @@ def jobmanager(argv, job, runid, jm, tasklist, completed):
 
             # Exit the job manager when done
             if len(tasklist) == 0 and completed[0] == 1:
+                logging.debug('Job manager exiting...')
                 return
 
             # Keep sending the uncommitted tasks
@@ -726,6 +733,7 @@ def committer(argv, job, runid, co, tasklist, completed):
 
             if len(tasklist) == 0 and completed[0] == 1:
                 logging.info('All tasks committed.')
+                logging.debug('Committer exiting...')
                 return
 
         # Refresh the tasklist
