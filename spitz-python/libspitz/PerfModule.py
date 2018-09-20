@@ -236,7 +236,8 @@ class PerfModule():
         Return:
 
           A tuple with the utilization, temperature, sm clock, memory clock, 
-          total used memory and used memory by the specified PID.
+          total used memory, used memory by the specified PID and power
+          consumption.
 
         Note:
 
@@ -282,7 +283,12 @@ class PerfModule():
         except:
             pass
 
-        return (ut, mut, temp, smclk, memclk, mem, pmem)
+        try:
+            power = nvmlDeviceGetPowerUsage(handle) / 1000.0
+        except:
+            power = error
+
+        return (ut, mut, temp, smclk, memclk, mem, pmem, power)
             
 
     def RunCPU(self):
@@ -511,6 +517,18 @@ class PerfModule():
         except:
             memtotal = 'N/A'
 
+        try:
+            meminfo = nvmlDeviceGetMemoryInfo(handle)
+            memtotal = str(meminfo.total / 1024 / 1024) + ' MiB'
+        except:
+            memtotal = 'N/A'
+
+        try:
+            powerlim = nvmlDeviceGetPowerManagementLimit(handle)
+            powerlim = str(powerlim / 1000.0) + ' W'
+        except:
+            powerlim = 'N/A'
+
         # Get the process PID
 
         pid = os.getpid()
@@ -554,13 +572,18 @@ class PerfModule():
             maxpmem = 0
             avgpmem = 0
 
+            minpower = 0
+            maxpower = 0
+            avgpower = 0
+
             n = 0
 
             gpuheader = """# (1) Total wall time (since beginning of PerfModule) [us]
 # (2-4) Utilization (min, max, avg) [%]
 # (5-7) Temperature (min, max, avg) [oC]
 # (8-10) SM Clock (min, max, avg) [MHz]
-# (11-13) Memory Clock (min, max, avg) [MHz]"""
+# (11-13) Memory Clock (min, max, avg) [MHz]
+# (14-16) Power Consumption (min, max, avg) [W]"""
 
             memheader = """# (1) Total wall time (since beginning of PerfModule) [us]
 # (2-4) Total used memory (min, max, avg) [MiB]
@@ -575,7 +598,7 @@ class PerfModule():
                 try:
 
                     wt = timeit.default_timer()
-                    ut, mut, temp, smclk, memclk, mem, pmem = self.NVStat(handle, pid)
+                    ut, mut, temp, smclk, memclk, mem, pmem, power = self.NVStat(handle, pid)
 
                     if refwtime == 0:
 
@@ -585,7 +608,8 @@ class PerfModule():
                         refstamp = datetime.datetime.utcnow()
                         cpuheader = '# ' + \
                             refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
-                            '\n# ' + fullname + '\n' + gpuheader
+                            '\n# ' + fullname + '\n# Power limit: ' + \
+                            powerlim + ' [W]\n' + gpuheader
                         memheader = '# ' + \
                             refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
                             '\n# ' + fullname + '\n# ' + memtotal + '\n' + memheader
@@ -601,6 +625,7 @@ class PerfModule():
                         avgmemclk += memclk
                         avgmem += mem
                         avgpmem += pmem
+                        avgpower += power
 
                         if n == 0:
                             minut = ut
@@ -617,6 +642,8 @@ class PerfModule():
                             maxmem = mem
                             minpmem = pmem
                             maxpmem = pmem
+                            minpower = power
+                            maxpower = power
                         else:
                             minut = min(minut, ut)
                             maxut = max(maxut, ut)
@@ -632,6 +659,8 @@ class PerfModule():
                             maxmem = max(maxmem, mem)
                             minpmem = min(minpmem, pmem)
                             maxpmem = max(maxpmem, pmem)
+                            minpower = min(minpower, power)
+                            maxpower = max(maxpower, power)
 
                         n += 1
 
@@ -656,6 +685,7 @@ class PerfModule():
             avgmemclk /= float(n)
             avgmem /= float(n)
             avgpmem /= float(n)
+            avgpower /= float(n)
 
             minut = minut if minut >= 0 else 'N/A'
             minmut = minmut if minmut >= 0 else 'N/A'
@@ -664,6 +694,7 @@ class PerfModule():
             minmemclk = minmemclk if minmemclk >= 0 else 'N/A'
             minmem = minmem if minmem >= 0 else 'N/A'
             minpmem = minpmem if minpmem >= 0 else 'N/A'
+            minpower = minpower if minpower >= 0 else 'N/A'
 
             maxut = maxut if maxut >= 0 else 'N/A'
             maxmut = maxmut if maxmut >= 0 else 'N/A'
@@ -672,6 +703,7 @@ class PerfModule():
             maxmemclk = maxmemclk if maxmemclk >= 0 else 'N/A'
             maxmem = maxmem if maxmem >= 0 else 'N/A'
             maxpmem = maxpmem if maxpmem >= 0 else 'N/A'
+            maxpower = maxpower if maxpower >= 0 else 'N/A'
 
             avgut = avgut if avgut >= 0 else 'N/A'
             avgmut = avgmut if avgmut >= 0 else 'N/A'
@@ -680,11 +712,13 @@ class PerfModule():
             avgmemclk = avgmemclk if avgmemclk >= 0 else 'N/A'
             avgmem = avgmem if avgmem >= 0 else 'N/A'
             avgpmem = avgpmem if avgpmem >= 0 else 'N/A'
+            avgpower = avgpower if avgpower >= 0 else 'N/A'
 
             if not self.stop:
                 self.Dump(cpuheader, [wtime, minut, maxut, avgut, 
                     mintemp, maxtemp, avgtemp, minsmclk, maxsmclk, avgsmclk, 
-                    minmemclk, maxmemclk, avgmemclk], 
+                    minmemclk, maxmemclk, avgmemclk, minpower, maxpower,
+                    avgpower],
                     'gpu-%d' % igpu, isnew)
                 self.Dump(memheader, [wtime, minmem, maxmem, avgmem, minpmem, 
                     maxpmem, avgpmem, minmut, maxmut, avgmut], 
