@@ -22,9 +22,10 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
 # IN THE SOFTWARE.
 
-import os, time, timeit, threading, logging, datetime
-
+from .LogUtils import log_lines
 from .pynvml import *
+
+import os, time, timeit, threading, logging, datetime, traceback
 
 class PerfModule():
     """
@@ -106,6 +107,7 @@ class PerfModule():
             nvmlInit()
         except:
             logging.error('PerfModule: Could not initialize NVML!')
+            log_lines(traceback.format_exc(), logging.debug)
             return
 
         # List the GPUs in the system
@@ -115,6 +117,7 @@ class PerfModule():
             ngpus = nvmlDeviceGetCount()
         except:
             logging.error('PerfModule: Could not enumerate GPU devices!')
+            log_lines(traceback.format_exc(), logging.debug)
 
         # Start the NVML threads
 
@@ -123,6 +126,7 @@ class PerfModule():
                 handle = nvmlDeviceGetHandleByIndex(i)
             except:
                 logging.error('PerfModule: Failed to access GPU %d!' % i)
+                log_lines(traceback.format_exc(), logging.debug)
                 continue
 
             def runnv_wrapper():
@@ -478,19 +482,28 @@ class PerfModule():
 
         try:
             name = nvmlDeviceGetName(handle).decode('utf8')
-            brand = nvmlDeviceGetBrand(handle)
-            brandNames = {
-                NVML_BRAND_UNKNOWN : "Unknown",
-                NVML_BRAND_QUADRO  : "Quadro",
-                NVML_BRAND_TESLA   : "Tesla",
-                NVML_BRAND_NVS     : "NVS",
-                NVML_BRAND_GRID    : "Grid",
-                NVML_BRAND_GEFORCE : "GeForce",
-            }
-            fullname = '%s %s' % (brandNames[brand], name)
         except:
-            logging.error('PerfModule: Could not access GPU information!')
-            return
+            name = "Unknown"
+            logging.error('PerfModule: Could not access GPU name!')
+            log_lines(traceback.format_exc(), logging.debug)
+
+        try:
+            brand = nvmlDeviceGetBrand(handle)
+        except:
+            brand = NVML_BRAND_UNKNOWN
+            logging.error('PerfModule: Could not access GPU brand!')
+            log_lines(traceback.format_exc(), logging.debug)
+
+        brandNames = {
+            NVML_BRAND_UNKNOWN : "Unknown",
+            NVML_BRAND_QUADRO  : "Quadro",
+            NVML_BRAND_TESLA   : "Tesla",
+            NVML_BRAND_NVS     : "NVS",
+            NVML_BRAND_GRID    : "Grid",
+            NVML_BRAND_GEFORCE : "GeForce",
+        }
+
+        fullname = '%s %s' % (brandNames[brand], name)
 
         try:
             meminfo = nvmlDeviceGetMemoryInfo(handle)
