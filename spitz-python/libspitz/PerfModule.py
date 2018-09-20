@@ -236,8 +236,8 @@ class PerfModule():
         Return:
 
           A tuple with the utilization, temperature, sm clock, memory clock, 
-          total used memory, used memory by the specified PID and power
-          consumption.
+          total used memory, used memory by the specified PID, power
+          consumption and throttling reasons.
 
         Note:
 
@@ -284,11 +284,16 @@ class PerfModule():
             pass
 
         try:
+            throttle = nvmlDeviceGetCurrentClocksThrottleReasons(handle)
+        except:
+            throttle = error
+
+        try:
             power = nvmlDeviceGetPowerUsage(handle) / 1000.0
         except:
             power = error
 
-        return (ut, mut, temp, smclk, memclk, mem, pmem, power)
+        return (ut, mut, temp, smclk, memclk, mem, pmem, power, throttle)
             
 
     def RunCPU(self):
@@ -576,6 +581,8 @@ class PerfModule():
             maxpower = 0
             avgpower = 0
 
+            throtbits = 0
+
             n = 0
 
             gpuheader = """# (1) Total wall time (since beginning of PerfModule) [us]
@@ -583,7 +590,8 @@ class PerfModule():
 # (5-7) Temperature (min, max, avg) [oC]
 # (8-10) SM Clock (min, max, avg) [MHz]
 # (11-13) Memory Clock (min, max, avg) [MHz]
-# (14-16) Power Consumption (min, max, avg) [W]"""
+# (14-16) Power Consumption (min, max, avg) [W]
+# (17) Throttling Reason (accumulated during period)"""
 
             memheader = """# (1) Total wall time (since beginning of PerfModule) [us]
 # (2-4) Total used memory (min, max, avg) [MiB]
@@ -598,7 +606,8 @@ class PerfModule():
                 try:
 
                     wt = timeit.default_timer()
-                    ut, mut, temp, smclk, memclk, mem, pmem, power = self.NVStat(handle, pid)
+                    ut, mut, temp, smclk, memclk, mem, pmem, power, \
+                        throttle = self.NVStat(handle, pid)
 
                     if refwtime == 0:
 
@@ -626,6 +635,8 @@ class PerfModule():
                         avgmem += mem
                         avgpmem += pmem
                         avgpower += power
+
+                        throtbits = throtbits | throttle
 
                         if n == 0:
                             minut = ut
@@ -718,7 +729,7 @@ class PerfModule():
                 self.Dump(cpuheader, [wtime, minut, maxut, avgut, 
                     mintemp, maxtemp, avgtemp, minsmclk, maxsmclk, avgsmclk, 
                     minmemclk, maxmemclk, avgmemclk, minpower, maxpower,
-                    avgpower],
+                    avgpower, throtbits],
                     'gpu-%d' % igpu, isnew)
                 self.Dump(memheader, [wtime, minmem, maxmem, avgmem, minpmem, 
                     maxpmem, avgpmem, minmut, maxmut, avgmut], 
