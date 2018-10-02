@@ -517,6 +517,11 @@ class PerfModule():
         fullname = '%s %s' % (brandNames[brand], name)
 
         try:
+            vdriver = nvmlSystemGetDriverVersion().decode('utf8')
+        except:
+            vdriver = 'N/A'
+
+        try:
             meminfo = nvmlDeviceGetMemoryInfo(handle)
             memtotal = str(meminfo.total / 1024 / 1024) + ' MiB'
         except:
@@ -617,8 +622,8 @@ class PerfModule():
                         refstamp = datetime.datetime.utcnow()
                         cpuheader = '# ' + \
                             refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
-                            '\n# ' + fullname + '\n# Power limit: ' + \
-                            powerlim + ' [W]\n' + gpuheader
+                            '\n# ' + fullname + '\n# Driver version: ' + vdriver + \
+                            '\n# Power limit: ' + powerlim + ' [W]\n' + gpuheader
                         memheader = '# ' + \
                             refstamp.strftime('%Y-%m-%d %H:%M:%S.%f') + \
                             '\n# ' + fullname + '\n# ' + memtotal + '\n' + memheader
