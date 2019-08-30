@@ -23,7 +23,11 @@
 # IN THE SOFTWARE.
 
 from .LogUtils import log_lines
-from .pynvml import *
+
+try:
+    from pynvml import *
+except:
+    pass
 
 import os, time, timeit, threading, logging, datetime, traceback, sys
 
