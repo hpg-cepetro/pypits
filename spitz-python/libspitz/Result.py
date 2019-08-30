@@ -2,7 +2,7 @@
 
 # The MIT License (MIT)
 #
-# Copyright (c) 2015 Caian Benedicto <caian@ggaunicamp.com>
+# Copyright (c) 2018 Caian Benedicto <caian@ggaunicamp.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to
@@ -22,24 +22,20 @@
 # FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 # IN THE SOFTWARE.
 
-from .LogUtils import *
+class Result(object):
+    """Class encapsulating a result with a blob of data."""
 
-from .Blob import Blob
-from .Pointer import Pointer
-from .JobBinary import JobBinary
+    def __init__(self, code, blob):
+        """Construct a new object given the result of the operation
+           and a blob of data pointer to the data and size."""
 
-from .Endpoint import Endpoint
-from .SimpleEndpoint import SimpleEndpoint
-from .ClientEndpoint import ClientEndpoint
+        self._code = code
+        self._blob = blob
 
-from .Listener import Listener
-from .TaskPool import TaskPool
-from .Timeout import timeout
-from .PerfModule import PerfModule
-from .UIDUtils import make_uid
+    def get_code(self):
+        """Get the code of the result."""
+        return self._code
 
-def main():
-    pass
-
-if __name__ == '__main__':
-    main()
+    def get_blob(self):
+        """Get the blob of the result."""
+        return self._blob
